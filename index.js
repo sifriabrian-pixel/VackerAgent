@@ -9,7 +9,7 @@ const qrcode = require('qrcode-terminal');
 
 const { getReply }          = require('./src/claude');
 const { addMessage, getLead, updateLead, isActivated } = require('./src/memory');
-const { crearContacto }     = require('./src/tokko');
+const { crearContacto, buscarPropiedad, formatearFicha } = require('./src/tokko');
 const { iniciarScheduler }  = require('./src/scheduler');
 const { ACTIVATION_TRIGGERS } = require('./prompts/vacker');
 
@@ -116,8 +116,24 @@ async function conectar() {
         console.log(`[FechaFutura] Lead ${jid} disponible en ${meses[1]} meses`);
       }
 
+      // ── Buscar propiedad en Tokko si el mensaje tiene link o dirección ──────
+      let fichaTokko = null;
+      if (!lead.propiedadTokkoId) {
+        const prop = await buscarPropiedad(texto);
+        if (prop) {
+          fichaTokko = formatearFicha(prop);
+          updateLead(jid, { propiedadTokkoId: prop.id });
+          console.log(`[Tokko] Propiedad encontrada: ${prop.id} — ${prop.address}`);
+        }
+      }
+
       // ── Llamada a Claude ──────────────────────────────────────────────────
-      addMessage(jid, 'user', texto);
+      // Si encontramos la propiedad en Tokko, la incluimos en el mensaje al agente
+      const mensajeParaClaude = fichaTokko
+        ? `${texto}\n\n[FICHA DE LA PROPIEDAD ENCONTRADA EN TOKKO]\n${fichaTokko}`
+        : texto;
+
+      addMessage(jid, 'user', mensajeParaClaude);
       console.log(`[Mensaje] ${jid}: ${texto.substring(0, 60)}...`);
 
       try {
