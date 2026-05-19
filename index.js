@@ -5,6 +5,7 @@ require('dotenv').config();
 const path = require('path');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
+const qrcode = require('qrcode-terminal');
 
 const { getReply }          = require('./src/claude');
 const { addMessage, getLead, updateLead, isActivated } = require('./src/memory');
@@ -49,12 +50,15 @@ async function conectar() {
   const sock = makeWASocket({
     auth: state,
     logger: pino({ level: 'silent' }),
-    printQRInTerminal: true,
   });
 
   sock.ev.on('creds.update', saveCreds);
 
-  sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+  sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+    if (qr) {
+      console.log('\n[QR] Escaneá este código con WhatsApp:\n');
+      qrcode.generate(qr, { small: true });
+    }
     if (connection === 'close') {
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       console.log('[Baileys] Conexión cerrada. Reconectando:', shouldReconnect);
