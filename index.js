@@ -2,6 +2,10 @@
 // Vacker Negocios Inmobiliarios — Agente WhatsApp IA
 
 require('dotenv').config();
+
+// Diagnostico de arranque — antes de cualquier import
+console.log('[Config] ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? 'OK' : 'FALTA');
+console.log('[Config] TOKKO_API_KEY:', process.env.TOKKO_API_KEY ? 'OK' : 'FALTA');
 const path = require('path');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
@@ -16,11 +20,6 @@ const { ACTIVATION_TRIGGERS } = require('./prompts/vacker');
 const SESSION_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'sessions')
   : './sessions';
-
-// Diagnostico de arranque
-console.log('[Config] SESSION_PATH:', SESSION_PATH);
-console.log('[Config] ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? 'OK' : 'FALTA');
-console.log('[Config] TOKKO_API_KEY:', process.env.TOKKO_API_KEY ? 'OK' : 'FALTA');
 
 
 // ─── FILTRO DE ACTIVACIÓN ────────────────────────────────────────────────────
