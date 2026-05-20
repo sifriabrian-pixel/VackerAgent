@@ -50,7 +50,10 @@ async function sendMessage(sock, jid, texto) {
 
 // ─── CONEXIÓN BAILEYS ─────────────────────────────────────────────────────────
 async function conectar() {
-  const { state, saveCreds } = await useMultiFileAuthState(SESSION_PATH);
+  console.log('[Conectar] Iniciando, SESSION_PATH:', SESSION_PATH);
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState(SESSION_PATH);
+    console.log('[Conectar] Auth state cargado OK');
 
   const sock = makeWASocket({
     auth: state,
