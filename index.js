@@ -22,6 +22,7 @@ console.log('[Config] SESSION_PATH:', SESSION_PATH);
 console.log('[Config] ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? 'OK' : 'FALTA');
 console.log('[Config] TOKKO_API_KEY:', process.env.TOKKO_API_KEY ? 'OK' : 'FALTA');
 
+
 // ─── FILTRO DE ACTIVACIÓN ────────────────────────────────────────────────────
 function esLeadInmobiliario(texto) {
   const t = texto.toLowerCase().trim();
