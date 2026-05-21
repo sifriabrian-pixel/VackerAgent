@@ -1,8 +1,14 @@
-[phases.build]
+[phases.setup]
+nixPkgs = ["nodejs"]
+
+[phases.install]
 cmds = ["npm install"]
 
-[phases.start]
-cmds = ["node index.js"]
+[phases.build]
+cmds = ["echo 'Build OK'"]
+
+[start]
+cmd = "node index.js"
 
 [variables]
-NODE_VERSION = "18"
+NODE_VERSION = "20"
