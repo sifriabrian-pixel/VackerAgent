@@ -19,7 +19,7 @@ const { iniciarScheduler }  = require('./src/scheduler');
 const { ACTIVATION_TRIGGERS } = require('./prompts/vacker');
 
 const SESSION_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'sessions')
+  ? process.env.RAILWAY_VOLUME_MOUNT_PATH
   : './sessions';
 
 console.log('[Config] SESSION_PATH:', SESSION_PATH);
