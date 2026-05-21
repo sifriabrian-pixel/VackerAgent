@@ -3,9 +3,10 @@
 
 require('dotenv').config();
 
-// Diagnostico de arranque — antes de cualquier import
+// Diagnostico de arranque
 console.log('[Config] ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? 'OK' : 'FALTA');
 console.log('[Config] TOKKO_API_KEY:', process.env.TOKKO_API_KEY ? 'OK' : 'FALTA');
+
 const path = require('path');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
@@ -21,22 +22,20 @@ const SESSION_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'sessions')
   : './sessions';
 
+console.log('[Config] SESSION_PATH:', SESSION_PATH);
 
-// ─── FILTRO DE ACTIVACIÓN ────────────────────────────────────────────────────
+// ─── FILTRO DE ACTIVACIÓN ─────────────────────────────────────────────────────
 function esLeadInmobiliario(texto) {
   const t = texto.toLowerCase().trim();
   return ACTIVATION_TRIGGERS.some(trigger => t.includes(trigger));
 }
 
 // ─── COMANDO #visita ──────────────────────────────────────────────────────────
-// El asesor escribe #visita DD/MM HH:MM en el chat del lead
-// Ejemplo: #visita 25/06 18:00
 function parseVisitaCommand(texto) {
   const match = texto.match(/^#visita\s+(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/i);
   if (!match) return null;
   const [, dia, mes, hora, min] = match;
-  const anio = new Date().getFullYear();
-  return new Date(anio, parseInt(mes) - 1, parseInt(dia), parseInt(hora), parseInt(min));
+  return new Date(new Date().getFullYear(), parseInt(mes) - 1, parseInt(dia), parseInt(hora), parseInt(min));
 }
 
 // ─── ENVÍO DE MENSAJE ─────────────────────────────────────────────────────────
@@ -51,9 +50,18 @@ async function sendMessage(sock, jid, texto) {
 // ─── CONEXIÓN BAILEYS ─────────────────────────────────────────────────────────
 async function conectar() {
   console.log('[Conectar] Iniciando, SESSION_PATH:', SESSION_PATH);
+
+  let state, saveCreds;
   try {
-    const { state, saveCreds } = await useMultiFileAuthState(SESSION_PATH);
+    const auth = await useMultiFileAuthState(SESSION_PATH);
+    state = auth.state;
+    saveCreds = auth.saveCreds;
     console.log('[Conectar] Auth state cargado OK');
+  } catch (err) {
+    console.error('[Conectar] Error cargando auth state:', err.message);
+    setTimeout(conectar, 5000);
+    return;
+  }
 
   const sock = makeWASocket({
     auth: state,
@@ -77,45 +85,42 @@ async function conectar() {
     }
   });
 
-  // ─── HANDLER DE MENSAJES ────────────────────────────────────────────────────
+  // ─── HANDLER DE MENSAJES ──────────────────────────────────────────────────
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
 
     for (const msg of messages) {
       if (!msg.message) continue;
 
-      const jid     = msg.key.remoteJid;
-      const fromMe  = msg.key.fromMe;
-      const texto   = msg.message?.conversation
-                   || msg.message?.extendedTextMessage?.text
-                   || '';
+      const jid    = msg.key.remoteJid;
+      const fromMe = msg.key.fromMe;
+      const texto  = msg.message?.conversation
+                  || msg.message?.extendedTextMessage?.text
+                  || '';
 
-      if (!texto || jid.includes('@g.us')) continue; // ignorar grupos
+      if (!texto || jid.includes('@g.us')) continue;
 
-      // ── Comando del asesor (#visita) ──────────────────────────────────────
+      // Comando del asesor (#visita)
       if (fromMe) {
         const fecha = parseVisitaCommand(texto);
         if (fecha) {
           updateLead(jid, { visitaFecha: fecha, reminderEnviado: false, postVisitaEnviado: false });
-          const fechaStr = fecha.toLocaleDateString('es-AR', {
-            weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
-          });
-          console.log(`[Visita] Programada para ${jid} — ${fechaStr}`);
+          console.log(`[Visita] Programada para ${jid} — ${fecha.toLocaleString('es-AR')}`);
         }
-        continue; // mensajes propios no se procesan por el agente
+        continue;
       }
 
-      // ── Filtro de activación ──────────────────────────────────────────────
+      // Filtro de activación
       const yaActivado = isActivated(jid);
       if (!yaActivado && !esLeadInmobiliario(texto)) {
-        console.log(`[Filtro] Ignorado — no es lead inmobiliario: ${jid}`);
+        console.log(`[Filtro] Ignorado: ${jid}`);
         continue;
       }
 
       const lead = getLead(jid);
       if (lead.conversacionCerrada) continue;
 
-      // ── Detectar fecha futura mencionada por el lead ──────────────────────
+      // Detectar fecha futura
       const meses = texto.match(/(\d+)\s*meses?/i);
       if (meses && !lead.disponibleEn) {
         const fecha = new Date();
@@ -124,7 +129,7 @@ async function conectar() {
         console.log(`[FechaFutura] Lead ${jid} disponible en ${meses[1]} meses`);
       }
 
-      // ── Buscar propiedad en Tokko si el mensaje tiene link o dirección ──────
+      // Buscar propiedad en Tokko
       let fichaTokko = null;
       if (!lead.propiedadTokkoId) {
         const prop = await buscarPropiedad(texto);
@@ -135,23 +140,19 @@ async function conectar() {
         }
       }
 
-      // ── Llamada a Claude ──────────────────────────────────────────────────
-      // Si encontramos la propiedad en Tokko, la incluimos en el mensaje al agente
+      // Llamada a Claude
       const mensajeParaClaude = fichaTokko
         ? `${texto}\n\n[FICHA DE LA PROPIEDAD ENCONTRADA EN TOKKO]\n${fichaTokko}`
         : texto;
 
       addMessage(jid, 'user', mensajeParaClaude);
-      console.log(`[Mensaje] ${jid}: ${texto.substring(0, 60)}...`);
+      console.log(`[Mensaje] ${jid}: ${texto.substring(0, 60)}`);
 
       try {
         const { text: respuesta, triggers } = await getReply(getLead(jid).history);
         addMessage(jid, 'assistant', respuesta);
         await sendMessage(sock, jid, respuesta);
 
-        // ── Procesar triggers ───────────────────────────────────────────────
-
-        // Lead calificado → crear en Tokko
         if (triggers.leadQualified && !lead.tokkoCreado) {
           const resultado = await crearContacto(getLead(jid));
           if (resultado) {
@@ -160,7 +161,6 @@ async function conectar() {
           }
         }
 
-        // Handoff → marcar para no enviar más follow-ups
         if (triggers.handoff) {
           updateLead(jid, { handoffHecho: true });
           console.log(`[Handoff] Lead ${jid} en manos del asesor`);
