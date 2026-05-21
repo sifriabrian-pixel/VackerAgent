@@ -123,6 +123,9 @@ async function conectar() {
   const sock = makeWASocket({
     auth: state,
     logger: pino({ level: 'silent' }),
+    browser: ['Vacker Agent', 'Chrome', '120.0.0'],
+    connectTimeoutMs: 60000,
+    keepAliveIntervalMs: 25000,
   });
 
   sock.ev.on('creds.update', saveCreds);
