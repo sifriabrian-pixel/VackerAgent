@@ -11,6 +11,8 @@ const path = require('path');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
+const http = require('http');
+const QRCode = require('qrcode');
 
 const { getReply }          = require('./src/claude');
 const { addMessage, getLead, updateLead, isActivated } = require('./src/memory');
@@ -23,6 +25,61 @@ const SESSION_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH
   : './sessions';
 
 console.log('[Config] SESSION_PATH:', SESSION_PATH);
+
+// ─── SERVIDOR HTTP PARA VER EL QR ────────────────────────────────────────────
+let currentQR = null;
+const PORT = process.env.PORT || 3000;
+
+http.createServer(async (req, res) => {
+  if (currentQR) {
+    try {
+      const qrImage = await QRCode.toDataURL(currentQR);
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vacker — Conectar WhatsApp</title>
+  <style>
+    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0d1117; color: #fff; }
+    h2 { color: #c9a84c; margin-bottom: 8px; }
+    p { color: #888; margin-bottom: 24px; font-size: 14px; }
+    img { border: 4px solid #c9a84c; border-radius: 12px; width: 280px; }
+    .dot { width: 10px; height: 10px; background: #25D366; border-radius: 50%; display: inline-block; margin-right: 8px; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  </style>
+  <meta http-equiv="refresh" content="30">
+</head>
+<body>
+  <h2>Vacker — Agente WhatsApp</h2>
+  <p><span class="dot"></span>Escaneá con WhatsApp → Dispositivos vinculados</p>
+  <img src="${qrImage}" alt="QR Code"/>
+  <p style="margin-top:16px;font-size:12px">La página se actualiza cada 30 segundos</p>
+</body>
+</html>`);
+    } catch (e) {
+      res.writeHead(500); res.end('Error generando QR');
+    }
+  } else {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Vacker — WhatsApp</title>
+  <style>body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0d1117;color:#fff;} h2{color:#c9a84c;} p{color:#888;}</style>
+  <meta http-equiv="refresh" content="5">
+</head>
+<body>
+  <h2>Vacker — Agente WhatsApp</h2>
+  <p>✓ Conectado y operativo</p>
+</body>
+</html>`);
+  }
+}).listen(PORT, () => {
+  console.log('[HTTP] Servidor QR corriendo en puerto', PORT);
+});
 
 // ─── FILTRO DE ACTIVACIÓN ─────────────────────────────────────────────────────
 function esLeadInmobiliario(texto) {
@@ -72,7 +129,8 @@ async function conectar() {
 
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
     if (qr) {
-      console.log('\n[QR] Escaneá este código con WhatsApp:\n');
+      currentQR = qr;
+      console.log('[QR] Código generado — abrí el dominio en Railway para escanearlo');
       qrcode.generate(qr, { small: true });
     }
     if (connection === 'close') {
@@ -80,6 +138,7 @@ async function conectar() {
       console.log('[Baileys] Conexión cerrada. Reconectando:', shouldReconnect);
       if (shouldReconnect) conectar();
     } else if (connection === 'open') {
+      currentQR = null;
       console.log('[Baileys] Conectado ✓');
       iniciarScheduler((jid, texto) => sendMessage(sock, jid, texto));
     }
