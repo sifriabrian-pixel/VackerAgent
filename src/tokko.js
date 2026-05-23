@@ -1,7 +1,4 @@
 // tokko.js — integración completa con Tokko Broker API
-// - Buscar propiedad por dirección (leads de Meta)
-// - Buscar propiedad por link de portal (leads de ZonaProp, MeLi, etc.)
-// - Crear contacto/lead
 
 const axios = require('axios');
 
@@ -9,28 +6,6 @@ const API_KEY  = process.env.TOKKO_API_KEY;
 const BASE_URL = 'https://www.tokkobroker.com/api/v1';
 
 // ─── BUSCAR PROPIEDAD ─────────────────────────────────────────────────────────
-
-async function buscarPorDireccion(direccion) {
-  try {
-    const res = await axios.get(`${BASE_URL}/property/search/`, {
-      params: {
-        format: 'json',
-        key: API_KEY,
-        lang: 'es_ar',
-        limit: 3,
-        data: JSON.stringify({
-          address: direccion,
-          status: [2],
-        }),
-      },
-    });
-    const propiedades = res.data?.objects || [];
-    return propiedades.length > 0 ? propiedades[0] : null;
-  } catch (err) {
-    console.error('[Tokko] Error buscando por direccion:', err?.response?.data || err.message);
-    return null;
-  }
-}
 
 async function buscarPorId(tokkoId) {
   try {
@@ -54,6 +29,7 @@ function extraerIdDesdeLink(url) {
   return null;
 }
 
+// Busca propiedad solo si el mensaje tiene un link — no por dirección
 async function buscarPropiedad(texto) {
   const urlMatch = texto.match(/https?:\/\/[^\s]+/);
   if (urlMatch) {
@@ -62,11 +38,6 @@ async function buscarPropiedad(texto) {
       console.log(`[Tokko] Buscando por ID: ${id}`);
       return await buscarPorId(id);
     }
-  }
-  const dirMatch = texto.match(/([a-zA-ZáéíóúñÁÉÍÓÚÑ\s]+)\s+(\d{3,4})/);
-  if (dirMatch) {
-    console.log(`[Tokko] Buscando por direccion: ${dirMatch[0].trim()}`);
-    return await buscarPorDireccion(dirMatch[0].trim());
   }
   return null;
 }
@@ -105,14 +76,21 @@ async function crearContacto(lead) {
       api_key: API_KEY,
       name: lead.nombre || `Lead WhatsApp ${lead.telefono}`,
       phone: lead.telefono,
-      email: '',
-      tags: ['WhatsApp', 'Meta Ads'],
+      mail: lead.email || 'sin-email@whatsapp.com',
       comment: buildComentario(lead),
+      tags: ['WhatsApp', 'Meta Ads'],
     };
-    if (lead.propiedadTokkoId) payload.properties = [lead.propiedadTokkoId];
+
+    // publication_id es requerido — usamos el ID de la propiedad de interés si existe
+    if (lead.propiedadTokkoId) {
+      payload.publication_id = String(lead.propiedadTokkoId);
+      payload.properties = [lead.propiedadTokkoId];
+    }
+
     const res = await axios.post(
-      'https://tokkobroker.com/portals/simple_portal/api/v1/contact/',
-      payload
+      `http://tokkobroker.com/portals/simple_portal/api/v1/contact/`,
+      payload,
+      { headers: { 'Content-Type': 'application/json' } }
     );
     console.log(`[Tokko] Contacto creado OK — ID: ${res.data?.id}`);
     return res.data;
