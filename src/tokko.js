@@ -1,11 +1,11 @@
-// tokko.js — integración completa con Tokko Broker API
+// tokko.js — integración con Tokko Broker API
 
 const axios = require('axios');
 
 const API_KEY  = process.env.TOKKO_API_KEY;
 const BASE_URL = 'https://www.tokkobroker.com/api/v1';
 
-// ─── BUSCAR PROPIEDAD ─────────────────────────────────────────────────────────
+// ─── BUSCAR PROPIEDAD POR LINK ────────────────────────────────────────────────
 
 async function buscarPorId(tokkoId) {
   try {
@@ -29,7 +29,6 @@ function extraerIdDesdeLink(url) {
   return null;
 }
 
-// Busca propiedad solo si el mensaje tiene un link — no por dirección
 async function buscarPropiedad(texto) {
   const urlMatch = texto.match(/https?:\/\/[^\s]+/);
   if (urlMatch) {
@@ -47,7 +46,10 @@ async function buscarPropiedad(texto) {
 function formatearFicha(prop) {
   if (!prop) return null;
   const ops = prop.operations?.[0];
-  const operacion = ops?.operation_type === 1 ? 'Venta' : ops?.operation_type === 2 ? 'Alquiler' : 'Consultar';
+  const opType = ops?.operation_type;
+  const operacion = (opType === 1 || opType === 'Sale') ? 'Venta'
+                  : (opType === 2 || opType === 'Rent') ? 'Alquiler'
+                  : 'Consultar';
   const precio = ops?.prices?.[0]
     ? `${ops.prices[0].currency} ${ops.prices[0].price?.toLocaleString('es-AR')}`
     : 'Consultar';
@@ -64,7 +66,7 @@ function formatearFicha(prop) {
 🔗 Ver ficha completa: https://www.vacker.com.ar/p/${prop.id}`;
 }
 
-// ─── CREAR CONTACTO ───────────────────────────────────────────────────────────
+// ─── CREAR CONSULTA EN TOKKO (solo para leads de Meta) ───────────────────────
 
 async function crearContacto(lead) {
   if (!API_KEY) {
@@ -72,36 +74,42 @@ async function crearContacto(lead) {
     return null;
   }
   try {
+    // Limpiar teléfono — sacar sufijo @lid o @s.whatsapp.net
+    const telefonoLimpio = (lead.telefono || '')
+      .replace(/@.*$/, '')
+      .replace(/[^0-9]/g, '')
+      .slice(-13);
+
     const payload = {
-      api_key: API_KEY,
-      name: lead.nombre || `Lead WhatsApp ${lead.telefono}`,
-      phone: lead.telefono,
-      mail: lead.email || 'sin-email@whatsapp.com',
-      comment: buildComentario(lead),
+      name: lead.nombre || 'Lead WhatsApp',
+      phone: telefonoLimpio,
+      cellphone: telefonoLimpio,
+      email: lead.email || '',
+      text: buildComentario(lead),
       tags: ['WhatsApp', 'Meta Ads'],
     };
 
-    // publication_id es requerido — usamos el ID de la propiedad de interés si existe
     if (lead.propiedadTokkoId) {
-      payload.publication_id = String(lead.propiedadTokkoId);
       payload.properties = [lead.propiedadTokkoId];
     }
 
+    console.log('[Tokko] Creando consulta para:', payload.name, '—', telefonoLimpio);
+
     const res = await axios.post(
-      `http://tokkobroker.com/portals/simple_portal/api/v1/contact/`,
+      `https://www.tokkobroker.com/api/v1/webcontact/?key=${API_KEY}`,
       payload,
       { headers: { 'Content-Type': 'application/json' } }
     );
-    console.log(`[Tokko] Contacto creado OK — ID: ${res.data?.id}`);
+    console.log(`[Tokko] Consulta creada OK`);
     return res.data;
   } catch (err) {
-    console.error('[Tokko] Error creando contacto:', err?.response?.data || err.message);
+    console.error('[Tokko] Error creando consulta:', err?.response?.data || err.message);
     return null;
   }
 }
 
 function buildComentario(lead) {
-  const partes = ['Lead calificado via WhatsApp.'];
+  const partes = ['Lead calificado via WhatsApp (Meta Ads).'];
   if (lead.operacion)    partes.push(`Operacion: ${lead.operacion}.`);
   if (lead.zona)         partes.push(`Zona: ${lead.zona}.`);
   if (lead.ambientes)    partes.push(`Ambientes: ${lead.ambientes}.`);
