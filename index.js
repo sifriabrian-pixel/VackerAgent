@@ -240,7 +240,10 @@ async function conectar() {
       try {
         const { text: respuesta, triggers, leadData } = await getReply(getLead(jid).history);
         addMessage(jid, 'assistant', respuesta);
-        await sendMessage(sock, jid, respuesta);
+        // Si es handoff, no mandar nada — Ezequiel toma el chat directamente
+        if (!triggers.handoff && respuesta.trim()) {
+          await sendMessage(sock, jid, respuesta);
+        }
 
         // Guardar datos del lead que Claude extrajo
         if (Object.keys(leadData).length > 0) {
