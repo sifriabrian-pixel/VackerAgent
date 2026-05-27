@@ -9,18 +9,20 @@ function getLead(jid) {
       history: [],
       // Datos del lead
       nombre: null,
-      telefono: jid.replace('@s.whatsapp.net', ''),
-      operacion: null,       // 'venta' | 'alquiler'
+      telefono: jid.replace('@s.whatsapp.net', '').replace('@lid', ''),
+      operacion: null,
       zona: null,
       ambientes: null,
       presupuesto: null,
-      propiedadInteres: null, // ID de propiedad del inventario
+      propiedadInteres: null,
+      propiedadTokkoId: null,
       // Estados
       calificado: false,
       handoffHecho: false,
       tokkoCreado: false,
+      asesorIntervino: false,
       // Visita
-      visitaFecha: null,      // Date object
+      visitaFecha: null,
       reminderEnviado: false,
       postVisitaEnviado: false,
       // Follow-up
@@ -28,9 +30,11 @@ function getLead(jid) {
       followup24Enviado: false,
       followup48Enviado: false,
       conversacionCerrada: false,
-      // Fecha futura (lead que tiene dinero en X meses)
-      disponibleEn: null,     // Date object
+      // Fecha futura
+      disponibleEn: null,
       recordatorioEnviado: false,
+      // Canal de origen
+      canal: null, // 'meta' | 'portal'
     };
   }
   return leads[jid];
@@ -45,7 +49,6 @@ function updateLead(jid, data) {
 function addMessage(jid, role, content) {
   const lead = getLead(jid);
   lead.history.push({ role, content });
-  // Mantener solo los últimos 20 mensajes para no inflar tokens
   if (lead.history.length > 20) {
     lead.history = lead.history.slice(-20);
   }
