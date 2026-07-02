@@ -1,86 +1,26 @@
-// index.js — punto de entrada principal
-// Vacker Negocios Inmobiliarios — Agente WhatsApp IA
+// index.js — Vacker Negocios Inmobiliarios — Agente WhatsApp IA (Meta Cloud API)
 
 require('dotenv').config();
 
-console.log('[Config] ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? 'OK' : 'FALTA');
-console.log('[Config] TOKKO_API_KEY:', process.env.TOKKO_API_KEY ? 'OK' : 'FALTA');
+console.log('[Config] ANTHROPIC_API_KEY:',  process.env.ANTHROPIC_API_KEY  ? 'OK' : 'FALTA');
+console.log('[Config] TOKKO_API_KEY:',       process.env.TOKKO_API_KEY       ? 'OK' : 'FALTA');
+console.log('[Config] WHATSAPP_TOKEN:',      process.env.WHATSAPP_TOKEN      ? 'OK' : 'FALTA');
+console.log('[Config] PHONE_NUMBER_ID:',     process.env.PHONE_NUMBER_ID     ? 'OK' : 'FALTA');
+console.log('[Config] WEBHOOK_VERIFY_TOKEN:', process.env.WEBHOOK_VERIFY_TOKEN ? 'OK' : 'FALTA');
 
-const path = require('path');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
-const pino = require('pino');
-const qrcode = require('qrcode-terminal');
 const http = require('http');
-const QRCode = require('qrcode');
 
-const { getReply }          = require('./src/claude');
-const { addMessage, getLead, updateLead, isActivated } = require('./src/memory');
-const { crearContacto, buscarPropiedad, formatearFicha } = require('./src/tokko');
-const { iniciarScheduler }  = require('./src/scheduler');
-const { ACTIVATION_TRIGGERS, META_TRIGGERS } = require('./prompts/vacker');
+const { getReply }                                              = require('./src/claude');
+const { addMessage, getLead, updateLead, isActivated }         = require('./src/memory');
+const { buscarPropiedad, formatearFicha, crearContacto }       = require('./src/tokko');
+const { iniciarScheduler }                                     = require('./src/scheduler');
+const { sendMessage }                                          = require('./src/whatsapp');
+const { ACTIVATION_TRIGGERS, META_TRIGGERS }                   = require('./prompts/vacker');
 
-const SESSION_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? process.env.RAILWAY_VOLUME_MOUNT_PATH
-  : './sessions';
+const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
+const PORT         = process.env.PORT || 3000;
 
-console.log('[Config] SESSION_PATH:', SESSION_PATH);
-
-// ─── SERVIDOR HTTP PARA VER EL QR ────────────────────────────────────────────
-let currentQR = null;
-const PORT = process.env.PORT || 3000;
-
-http.createServer(async (req, res) => {
-  if (currentQR) {
-    try {
-      const qrImage = await QRCode.toDataURL(currentQR);
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vacker — Conectar WhatsApp</title>
-  <style>
-    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0d1117; color: #fff; }
-    h2 { color: #c9a84c; margin-bottom: 8px; }
-    p { color: #888; margin-bottom: 24px; font-size: 14px; }
-    img { border: 4px solid #c9a84c; border-radius: 12px; width: 280px; }
-    .dot { width: 10px; height: 10px; background: #25D366; border-radius: 50%; display: inline-block; margin-right: 8px; animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-  </style>
-  <meta http-equiv="refresh" content="30">
-</head>
-<body>
-  <h2>Vacker — Agente WhatsApp</h2>
-  <p><span class="dot"></span>Escaneá con WhatsApp → Dispositivos vinculados</p>
-  <img src="${qrImage}" alt="QR Code"/>
-  <p style="margin-top:16px;font-size:12px">La página se actualiza cada 30 segundos</p>
-</body>
-</html>`);
-    } catch (e) {
-      res.writeHead(500); res.end('Error generando QR');
-    }
-  } else {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Vacker — WhatsApp</title>
-  <style>body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0d1117;color:#fff;} h2{color:#c9a84c;} p{color:#888;}</style>
-  <meta http-equiv="refresh" content="5">
-</head>
-<body>
-  <h2>Vacker — Agente WhatsApp</h2>
-  <p>✓ Conectado y operativo</p>
-</body>
-</html>`);
-  }
-}).listen(PORT, () => {
-  console.log('[HTTP] Servidor QR corriendo en puerto', PORT);
-});
-
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 function esLeadInmobiliario(texto) {
   const t = texto.toLowerCase().trim();
@@ -92,191 +32,154 @@ function esCanaMeta(texto) {
   return META_TRIGGERS.some(trigger => t.includes(trigger));
 }
 
-function parseVisitaCommand(texto) {
-  const match = texto.match(/^#visita\s+(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/i);
-  if (!match) return null;
-  const [, dia, mes, hora, min] = match;
-  return new Date(new Date().getFullYear(), parseInt(mes) - 1, parseInt(dia), parseInt(hora), parseInt(min));
-}
+// ─── PROCESAMIENTO DE MENSAJE ─────────────────────────────────────────────────
 
-async function sendMessage(sock, jid, texto) {
-  try {
-    await sock.sendMessage(jid, { text: texto });
-  } catch (err) {
-    console.error(`[Send] Error enviando a ${jid}:`, err.message);
-  }
-}
+async function procesarMensaje(phone, texto) {
+  const jid = phone;
 
-// ─── CONEXIÓN BAILEYS ─────────────────────────────────────────────────────────
-async function conectar() {
-  console.log('[Conectar] Iniciando, SESSION_PATH:', SESSION_PATH);
-
-  let state, saveCreds;
-  try {
-    const auth = await useMultiFileAuthState(SESSION_PATH);
-    state = auth.state;
-    saveCreds = auth.saveCreds;
-    console.log('[Conectar] Auth state cargado OK');
-  } catch (err) {
-    console.error('[Conectar] Error cargando auth state:', err.message);
-    setTimeout(conectar, 5000);
+  const yaActivado = isActivated(jid);
+  if (!yaActivado && !esLeadInmobiliario(texto)) {
+    console.log(`[Filtro] Ignorado: ${jid}`);
     return;
   }
 
-  const sock = makeWASocket({
-    auth: state,
-    logger: pino({ level: 'silent' }),
-    browser: Browsers.ubuntu('Chrome'),
-    connectTimeoutMs: 60000,
-    keepAliveIntervalMs: 10000,
-    syncFullHistory: false,
-    generateHighQualityLinkPreview: false,
-  });
+  const lead = getLead(jid);
+  if (lead.conversacionCerrada) return;
+  if (lead.asesorIntervino) {
+    console.log(`[Filtro] Agente pausado por asesor en: ${jid}`);
+    return;
+  }
 
-  sock.ev.on('creds.update', saveCreds);
+  // Canal de origen
+  if (!lead.canal) {
+    updateLead(jid, { canal: esCanaMeta(texto) ? 'meta' : 'portal' });
+  }
 
-  sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
-    if (qr) {
-      currentQR = qr;
-      console.log('[QR] Código generado — abrí el dominio para escanearlo');
-      qrcode.generate(qr, { small: true });
+  // Fecha futura de disponibilidad
+  const meses = texto.match(/(\d+)\s*meses?/i);
+  if (meses && !lead.disponibleEn) {
+    const fecha = new Date();
+    fecha.setMonth(fecha.getMonth() + parseInt(meses[1]));
+    updateLead(jid, { disponibleEn: fecha });
+    console.log(`[FechaFutura] ${jid} disponible en ${meses[1]} mes(es)`);
+  }
+
+  // Buscar propiedad en Tokko si hay link en el mensaje
+  let fichaTokko = null;
+  if (!lead.propiedadTokkoId) {
+    const prop = await buscarPropiedad(texto);
+    if (prop) {
+      fichaTokko = formatearFicha(prop);
+      updateLead(jid, { propiedadTokkoId: prop.id });
+      console.log(`[Tokko] Propiedad encontrada: ${prop.id}`);
     }
-    if (connection === 'close') {
-      const reason = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = reason !== DisconnectReason.loggedOut;
-      console.log('[Baileys] Conexión cerrada. Código:', reason, '— Reconectando:', shouldReconnect);
-      if (shouldReconnect) conectar();
-    } else if (connection === 'open') {
-      currentQR = null;
-      console.log('[Baileys] Conectado ✓');
-      iniciarScheduler((jid, texto) => sendMessage(sock, jid, texto));
+  }
+
+  const mensajeParaClaude = fichaTokko
+    ? `${texto}\n\n[FICHA DE LA PROPIEDAD ENCONTRADA EN TOKKO]\n${fichaTokko}`
+    : texto;
+
+  addMessage(jid, 'user', mensajeParaClaude);
+  console.log(`[Mensaje] ${jid}: ${texto.substring(0, 60)}`);
+
+  try {
+    const { text: respuesta, triggers, leadData } = await getReply(getLead(jid).history);
+    addMessage(jid, 'assistant', respuesta);
+
+    if (!triggers.handoff && respuesta.trim()) {
+      await sendMessage(jid, respuesta);
     }
-  });
 
-  // ─── HANDLER DE MENSAJES ──────────────────────────────────────────────────
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
+    if (Object.keys(leadData).length > 0) {
+      updateLead(jid, leadData);
+      console.log(`[LeadData] Guardado:`, leadData);
+    }
 
-    for (const msg of messages) {
-      if (!msg.message) continue;
-
-      const jid    = msg.key.remoteJid;
-      const fromMe = msg.key.fromMe;
-      const texto  = msg.message?.conversation
-                  || msg.message?.extendedTextMessage?.text
-                  || '';
-
-      if (!texto || jid.includes('@g.us')) continue;
-
-      // ── Mensajes del asesor ───────────────────────────────────────────────
-      if (fromMe) {
-        const fecha = parseVisitaCommand(texto);
-        if (fecha) {
-          updateLead(jid, {
-            visitaFecha: fecha,
-            reminderEnviado: false,
-            postVisitaEnviado: false,
-            asesorIntervino: false,
-          });
-          console.log(`[Visita] Programada para ${jid} — ${fecha.toLocaleString('es-AR')}`);
-        } else {
-          // Ezequiel escribió manualmente — pausar agente
-          updateLead(jid, { asesorIntervino: true });
-          console.log(`[Asesor] Intervención manual en ${jid} — agente pausado`);
-        }
-        continue;
-      }
-
-      // ── Filtro de activación ──────────────────────────────────────────────
-      const yaActivado = isActivated(jid);
-      if (!yaActivado && !esLeadInmobiliario(texto)) {
-        console.log(`[Filtro] Ignorado: ${jid}`);
-        continue;
-      }
-
-      const lead = getLead(jid);
-      if (lead.conversacionCerrada) continue;
-      if (lead.asesorIntervino) {
-        console.log(`[Filtro] Agente pausado por asesor en: ${jid}`);
-        continue;
-      }
-
-      // Detectar canal de origen al primer mensaje
-      if (!lead.canal && esCanaMeta(texto)) {
-        updateLead(jid, { canal: 'meta' });
-        console.log(`[Canal] Meta detectado para ${jid}`);
-      } else if (!lead.canal) {
-        updateLead(jid, { canal: 'portal' });
-      }
-
-      // Detectar fecha futura
-      const meses = texto.match(/(\d+)\s*meses?/i);
-      if (meses && !lead.disponibleEn) {
-        const fecha = new Date();
-        fecha.setMonth(fecha.getMonth() + parseInt(meses[1]));
-        updateLead(jid, { disponibleEn: fecha });
-        console.log(`[FechaFutura] Lead ${jid} disponible en ${meses[1]} meses`);
-      }
-
-      // Buscar propiedad en Tokko si hay link
-      let fichaTokko = null;
-      if (!lead.propiedadTokkoId) {
-        const prop = await buscarPropiedad(texto);
-        if (prop) {
-          fichaTokko = formatearFicha(prop);
-          updateLead(jid, { propiedadTokkoId: prop.id });
-          console.log(`[Tokko] Propiedad encontrada: ${prop.id} — ${prop.address}`);
-        }
-      }
-
-      // Llamada a Claude
-      const mensajeParaClaude = fichaTokko
-        ? `${texto}\n\n[FICHA DE LA PROPIEDAD ENCONTRADA EN TOKKO]\n${fichaTokko}`
-        : texto;
-
-      addMessage(jid, 'user', mensajeParaClaude);
-      console.log(`[Mensaje] ${jid}: ${texto.substring(0, 60)}`);
-
-      try {
-        const { text: respuesta, triggers, leadData } = await getReply(getLead(jid).history);
-        addMessage(jid, 'assistant', respuesta);
-        // Si es handoff, no mandar nada — Ezequiel toma el chat directamente
-        if (!triggers.handoff && respuesta.trim()) {
-          await sendMessage(sock, jid, respuesta);
-        }
-
-        // Guardar datos del lead que Claude extrajo
-        if (Object.keys(leadData).length > 0) {
-          updateLead(jid, leadData);
-          console.log(`[LeadData] Guardado:`, leadData);
-        }
-
-        // Lead calificado → crear en Tokko solo si viene de Meta
-        if (triggers.leadQualified && !lead.tokkoCreado) {
-          const leadActual = getLead(jid);
-          if (leadActual.canal === 'meta') {
-            const resultado = await crearContacto(leadActual);
-            if (resultado) {
-              updateLead(jid, { tokkoCreado: true, calificado: true });
-              console.log(`[Tokko] Consulta creada para ${jid}`);
-            }
-          } else {
-            // Portal — Tokko ya lo tiene, solo marcar como calificado
-            updateLead(jid, { calificado: true });
-            console.log(`[Tokko] Lead de portal — ya registrado por el portal`);
-          }
-        }
-
-        if (triggers.handoff) {
-          updateLead(jid, { handoffHecho: true });
-          console.log(`[Handoff] Lead ${jid} en manos del asesor`);
-        }
-
-      } catch (err) {
-        console.error('[Claude] Error:', err.message);
+    if (triggers.leadQualified && !lead.tokkoCreado) {
+      const leadActual = getLead(jid);
+      if (leadActual.canal === 'meta') {
+        const resultado = await crearContacto(leadActual);
+        if (resultado) updateLead(jid, { tokkoCreado: true, calificado: true });
+      } else {
+        updateLead(jid, { calificado: true });
       }
     }
-  });
+
+    if (triggers.handoff) {
+      updateLead(jid, { handoffHecho: true });
+      console.log(`[Handoff] Lead ${jid} en manos del asesor`);
+    }
+
+  } catch (err) {
+    console.error('[Claude] Error:', err.message);
+  }
 }
 
-conectar();
+// ─── PROCESAMIENTO DE WEBHOOK ─────────────────────────────────────────────────
+
+async function procesarWebhook(data) {
+  if (data.object !== 'whatsapp_business_account') return;
+
+  for (const entry of data.entry || []) {
+    for (const change of entry.changes || []) {
+      if (change.field !== 'messages') continue;
+
+      const messages = change.value?.messages || [];
+      for (const msg of messages) {
+        if (msg.type !== 'text') continue;
+        const texto = msg.text?.body || '';
+        if (!texto) continue;
+        await procesarMensaje(msg.from, texto);
+      }
+    }
+  }
+}
+
+// ─── SERVIDOR HTTP ────────────────────────────────────────────────────────────
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, `http://localhost`);
+
+  // GET /webhook — verificación de Meta
+  if (req.method === 'GET' && url.pathname === '/webhook') {
+    const mode      = url.searchParams.get('hub.mode');
+    const token     = url.searchParams.get('hub.verify_token');
+    const challenge = url.searchParams.get('hub.challenge');
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('[Webhook] Verificación OK');
+      res.writeHead(200);
+      res.end(challenge);
+    } else {
+      res.writeHead(403);
+      res.end('Forbidden');
+    }
+    return;
+  }
+
+  // POST /webhook — mensajes entrantes
+  if (req.method === 'POST' && url.pathname === '/webhook') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      // Meta requiere 200 inmediato, antes de procesar
+      res.writeHead(200);
+      res.end('OK');
+      try {
+        await procesarWebhook(JSON.parse(body));
+      } catch (err) {
+        console.error('[Webhook] Error procesando payload:', err.message);
+      }
+    });
+    return;
+  }
+
+  // Health check
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Vacker Agent — operativo');
+});
+
+server.listen(PORT, () => {
+  console.log(`[HTTP] Servidor corriendo en puerto ${PORT}`);
+  iniciarScheduler(sendMessage);
+});
