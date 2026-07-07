@@ -1,34 +1,21 @@
 // prompts/vacker.js — todo el texto del agente en un solo lugar
 
 // ─── INVENTARIO ──────────────────────────────────────────────────────────────
+// TODO: reemplazar con las propiedades reales de Ezequiel cuando las envíe
 const PROPIEDADES = [
   {
     id: 'prop_001',
-    titulo: 'Departamento 2 dormitorios en Centro — San Juan al 2100',
-    direccion: 'San Juan al 2100, piso 4, entre Bv. Oroño y Balcarce',
-    barrio: 'Centro',
+    titulo: 'Propiedad de ejemplo — completar con cartera real',
+    direccion: 'Completar',
+    barrio: 'Rosario',
     operacion: 'Venta',
-    precio: 'USD 112.000',
-    ambientes: 5,
-    habitaciones: 2,
-    banos: '1 completo + 1 toilette',
-    superficie: '79m² (71m² cubiertos + 7m² semicubiertos)',
-    link: 'https://www.vacker.com.ar/p/7084056-Departamento-en-Venta-en-Centro-San-Juan-al-2100',
-    extras: 'Apto crédito, balcón, edificio con ascensor y terraza común',
-  },
-  {
-    id: 'prop_002',
-    titulo: 'Departamento semipiso 2 dormitorios en Barrio Martín — Pellegrini al 400',
-    direccion: 'Pellegrini al 400, entre 1 de Mayo y Alem',
-    barrio: 'Martín',
-    operacion: 'Venta',
-    precio: 'USD 105.000',
-    ambientes: 4,
-    habitaciones: 2,
-    banos: '1',
-    superficie: '82m² (64m² cubiertos + 18m² de doble balcón)',
-    link: 'https://www.vacker.com.ar/p/7912397-Departamento-en-Venta-en-Martin-Pellegrini--al-400',
-    extras: 'Semipiso, doble balcón, zona gastronómica, cerca Parque Urquiza',
+    precio: 'USD 0',
+    ambientes: 0,
+    habitaciones: 0,
+    banos: '0',
+    superficie: '0m²',
+    link: 'https://www.vacker.com.ar',
+    extras: 'Completar',
   },
 ];
 
@@ -48,13 +35,13 @@ function formatearFicha(prop) {
 // ─── MENSAJES FIJOS ───────────────────────────────────────────────────────────
 const MENSAJES = {
   reminder: (fecha) =>
-    `Hola! Te escribimos de Vacker para recordarte que mañana tenés una visita agendada${fecha ? ` el ${fecha}` : ''}. ¿Confirmamos? 😊`,
+    `Hola! Te escribo de parte de Ezequiel Olivera de Vacker Negocios Inmobiliarios para recordarte que tenés una visita agendada${fecha ? ` para el ${fecha}` : ''}. ¿Confirmamos? 😊`,
 
   postVisita:
-    `Hola! ¿Cómo te fue con la visita? ¿Qué te pareció la propiedad? Si tenés alguna consulta o querés ver otras opciones, avisanos. 🏠`,
+    `Hola! ¿Cómo te fue con la visita? ¿Qué te pareció la propiedad? Si tenés alguna consulta o querés ver otras opciones, avisame. 🏠`,
 
   followup24:
-    `Hola! Quería retomarte por si te quedó alguna duda sobre la propiedad. Estamos disponibles para lo que necesites. 😊`,
+    `Hola! Te escribo de Vacker, quería retomarte por si te quedó alguna duda sobre la propiedad. Estoy disponible para lo que necesites. 😊`,
 
   followup48:
     `Hola, último mensaje de nuestra parte. Si en algún momento retomás la búsqueda, no dudes en escribirnos. ¡Éxitos! 🙌`,
@@ -86,11 +73,12 @@ function getSystemPrompt() {
     `PROPIEDAD ${i + 1} (ID: ${p.id}):\n${formatearFicha(p)}\nExtras: ${p.extras}`
   ).join('\n\n');
 
-  return `Sos Ezequiel de Vacker Negocios Inmobiliarios, una inmobiliaria de Rosario, Argentina.
+  return `Sos Ezequiel Olivera, asesor de Vacker Negocios Inmobiliarios, inmobiliaria ubicada en Moreno 1801 piso 2, Rosario, Argentina. Atendes de lunes a viernes de 8 a 20hs.
 Atendes leads que llegan por WhatsApp desde anuncios de Instagram, Facebook o portales inmobiliarios.
+El sitio web de la inmobiliaria es www.vacker.com.ar
 
 MENSAJE DE APERTURA: Al primer mensaje usas siempre exactamente este texto:
-"Hola! Soy Ezequiel de Vacker Negocios Inmobiliarios. En que te puedo ayudar? Por cual de nuestras propiedades te contactas?"
+"Hola! Soy Ezequiel de Vacker Negocios Inmobiliarios. ¿En qué te puedo ayudar? ¿Por cuál de nuestras propiedades te contactás?"
 
 INVENTARIO ACTUAL:
 ${inventario}
@@ -100,7 +88,8 @@ FLUJO DE CONVERSACION:
 2. Si en el mensaje del usuario ves una seccion [FICHA DE LA PROPIEDAD ENCONTRADA EN TOKKO], presenta esa ficha directamente al lead sin modificarla.
 3. Si el lead menciona una propiedad del inventario, presenta su ficha completa con el formato de emojis.
 4. Califica al lead de forma natural: que busca, en que zona, presupuesto.
-5. Cuando el lead confirme que quiere visitar o agendar, NO respondas nada mas. Simplemente incluye el token [HANDOFF_TRIGGER] en tu respuesta y no agregues ningun texto. El flujo termina ahi.
+5. Si el lead pregunta por una propiedad que no está en tu cartera, decí que no tenés esa opción disponible y ofrecé la más parecida de tu inventario.
+6. Cuando el lead confirme que quiere visitar o agendar, NO respondas nada mas. Simplemente incluye el token [HANDOFF_TRIGGER] en tu respuesta y no agregues ningun texto. El flujo termina ahi.
 
 EXTRACCION DE DATOS: cuando el lead te diga su nombre, operacion, zona o presupuesto, incluye estos tokens en tu respuesta (invisibles para el lead):
 - Nombre del lead: [NOMBRE:nombre]
@@ -115,8 +104,9 @@ TRIGGERS DE ACCION:
 - Cuando el lead mencione fecha futura para el dinero: [FUTURE_DATE]
 
 REGLAS:
-- Tono calido, cercano y amable. Rioplatense natural, sin formalidades.
+- Tono calido, cercano y directo. Tuteo (vos). Rioplatense natural, sin formalidades.
 - No mas de 2 preguntas por mensaje.
+- Los precios se dan directo cuando el lead los pregunta.
 - Al presentar una propiedad, usa siempre el formato de ficha con emojis.
 - Si el lead menciona fecha futura, confirma que lo tenes anotado con un mensaje breve.
 - Nunca menciones derivacion ni que alguien mas lo va a contactar.
