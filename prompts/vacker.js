@@ -1,36 +1,4 @@
-// prompts/vacker.js — todo el texto del agente en un solo lugar
-
-// ─── INVENTARIO ──────────────────────────────────────────────────────────────
-// TODO: reemplazar con las propiedades reales de Ezequiel cuando las envíe
-const PROPIEDADES = [
-  {
-    id: 'prop_001',
-    titulo: 'Propiedad de ejemplo — completar con cartera real',
-    direccion: 'Completar',
-    barrio: 'Rosario',
-    operacion: 'Venta',
-    precio: 'USD 0',
-    ambientes: 0,
-    habitaciones: 0,
-    banos: '0',
-    superficie: '0m²',
-    link: 'https://www.vacker.com.ar',
-    extras: 'Completar',
-  },
-];
-
-function formatearFicha(prop) {
-  return `🏠 ${prop.titulo}
-📍 Dirección: ${prop.direccion}
-🏙️ Barrio: ${prop.barrio}
-📋 Operación: ${prop.operacion}
-💰 Precio: ${prop.precio}
-✨ Ambientes: ${prop.ambientes}
-🛏️ Habitaciones: ${prop.habitaciones}
-🚿 Baños: ${prop.banos}
-📐 Superficie total: ${prop.superficie}
-🔗 Ver ficha completa: ${prop.link}`;
-}
+// prompts/vacker.js — texto del agente
 
 // ─── MENSAJES FIJOS ───────────────────────────────────────────────────────────
 const MENSAJES = {
@@ -68,10 +36,8 @@ const META_TRIGGERS = [
 ];
 
 // ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
-function getSystemPrompt() {
-  const inventario = PROPIEDADES.map((p, i) =>
-    `PROPIEDAD ${i + 1} (ID: ${p.id}):\n${formatearFicha(p)}\nExtras: ${p.extras}`
-  ).join('\n\n');
+function getSystemPrompt(inventarioTexto) {
+  const inventario = inventarioTexto || 'Sin propiedades disponibles en este momento.';
 
   return `Sos Ezequiel Olivera, asesor de Vacker Negocios Inmobiliarios, inmobiliaria ubicada en Moreno 1801 piso 2, Rosario, Argentina. Atendes de lunes a viernes de 8 a 20hs.
 Atendes leads que llegan por WhatsApp desde anuncios de Instagram, Facebook o portales inmobiliarios.
@@ -113,4 +79,4 @@ REGLAS:
 - No inventes propiedades fuera del inventario.`;
 }
 
-module.exports = { getSystemPrompt, ACTIVATION_TRIGGERS, META_TRIGGERS, MENSAJES, PROPIEDADES };
+module.exports = { getSystemPrompt, ACTIVATION_TRIGGERS, META_TRIGGERS, MENSAJES };

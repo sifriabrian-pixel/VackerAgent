@@ -2,6 +2,7 @@
 
 const Anthropic = require('@anthropic-ai/sdk');
 const { getSystemPrompt } = require('../prompts/vacker');
+const { obtenerInventario, formatearInventarioParaPrompt } = require('./tokko');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -19,10 +20,13 @@ const ZONA_REGEX    = /\[ZONA:([^\]]+)\]/;
 const PRESUPUESTO_REGEX = /\[PRESUPUESTO:([^\]]+)\]/;
 
 async function getReply(history) {
+  const propiedades = await obtenerInventario();
+  const inventarioTexto = formatearInventarioParaPrompt(propiedades);
+
   const response = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
-    system: getSystemPrompt(),
+    system: getSystemPrompt(inventarioTexto),
     messages: history,
   });
 

@@ -2,8 +2,73 @@
 
 const axios = require('axios');
 
-const API_KEY  = process.env.TOKKO_API_KEY;
-const BASE_URL = 'https://www.tokkobroker.com/api/v1';
+const API_KEY    = process.env.TOKKO_API_KEY;
+const AGENT_ID   = process.env.TOKKO_AGENT_ID;
+const BASE_URL   = 'https://www.tokkobroker.com/api/v1';
+
+// ─── INVENTARIO EN MEMORIA ────────────────────────────────────────────────────
+
+let inventarioCache = [];
+let ultimaActualizacion = null;
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hora
+
+async function obtenerInventario() {
+  const ahora = Date.now();
+  if (inventarioCache.length > 0 && ultimaActualizacion && (ahora - ultimaActualizacion) < CACHE_TTL_MS) {
+    return inventarioCache;
+  }
+
+  if (!API_KEY) {
+    console.warn('[Tokko] TOKKO_API_KEY no configurada — inventario vacío');
+    return [];
+  }
+
+  try {
+    const params = {
+      format: 'json',
+      key: API_KEY,
+      lang: 'es_ar',
+      limit: 100,
+      status: 2, // solo activas
+    };
+
+    if (AGENT_ID) params.agent = AGENT_ID;
+
+    const res = await axios.get(`${BASE_URL}/property/`, { params });
+    const propiedades = res.data?.objects || res.data || [];
+
+    inventarioCache = propiedades.filter(p => p.id);
+    ultimaActualizacion = ahora;
+
+    console.log(`[Tokko] Inventario actualizado: ${inventarioCache.length} propiedades${AGENT_ID ? ` (agente ${AGENT_ID})` : ''}`);
+    return inventarioCache;
+  } catch (err) {
+    console.error('[Tokko] Error obteniendo inventario:', err?.response?.data || err.message);
+    return inventarioCache; // devuelve el cache anterior si hay error
+  }
+}
+
+function formatearInventarioParaPrompt(propiedades) {
+  if (!propiedades.length) return 'Sin propiedades disponibles en este momento.';
+
+  return propiedades.map((p, i) => {
+    const ops = p.operations?.[0];
+    const opType = ops?.operation_type;
+    const operacion = (opType === 1 || opType === 'Sale') ? 'Venta'
+                    : (opType === 2 || opType === 'Rent') ? 'Alquiler'
+                    : 'Consultar';
+    const precio = ops?.prices?.[0]
+      ? `${ops.prices[0].currency} ${ops.prices[0].price?.toLocaleString('es-AR')}`
+      : 'Consultar';
+
+    return `PROPIEDAD ${i + 1} (ID: ${p.id}):
+🏠 ${p.publication_title || p.address}
+📍 ${p.address || '—'} | 🏙️ ${p.location?.name || '—'}
+📋 ${operacion} | 💰 ${precio}
+✨ ${p.room_amount || '—'} amb | 🛏️ ${p.bedroom_amount || '—'} hab | 🚿 ${p.bathroom_amount || '—'} baños | 📐 ${p.total_surface ? p.total_surface + 'm²' : '—'}
+🔗 https://www.vacker.com.ar/p/${p.id}`;
+  }).join('\n\n');
+}
 
 // ─── BUSCAR PROPIEDAD POR LINK ────────────────────────────────────────────────
 
@@ -41,7 +106,7 @@ async function buscarPropiedad(texto) {
   return null;
 }
 
-// ─── FORMATEAR FICHA ──────────────────────────────────────────────────────────
+// ─── FORMATEAR FICHA (para mostrar al lead) ───────────────────────────────────
 
 function formatearFicha(prop) {
   if (!prop) return null;
@@ -74,7 +139,6 @@ async function crearContacto(lead) {
     return null;
   }
   try {
-    // Limpiar teléfono — sacar sufijo @lid o @s.whatsapp.net
     const telefonoLimpio = (lead.telefono || '')
       .replace(/@.*$/, '')
       .replace(/[^0-9]/g, '')
@@ -89,18 +153,16 @@ async function crearContacto(lead) {
       tags: ['WhatsApp', 'Meta Ads'],
     };
 
-    if (lead.propiedadTokkoId) {
-      payload.properties = [lead.propiedadTokkoId];
-    }
+    if (lead.propiedadTokkoId) payload.properties = [lead.propiedadTokkoId];
 
     console.log('[Tokko] Creando consulta para:', payload.name, '—', telefonoLimpio);
 
     const res = await axios.post(
-      `https://www.tokkobroker.com/api/v1/webcontact/?key=${API_KEY}`,
+      `${BASE_URL}/webcontact/?key=${API_KEY}`,
       payload,
       { headers: { 'Content-Type': 'application/json' } }
     );
-    console.log(`[Tokko] Consulta creada OK`);
+    console.log('[Tokko] Consulta creada OK');
     return res.data;
   } catch (err) {
     console.error('[Tokko] Error creando consulta:', err?.response?.data || err.message);
@@ -118,4 +180,4 @@ function buildComentario(lead) {
   return partes.join(' ');
 }
 
-module.exports = { buscarPropiedad, formatearFicha, crearContacto };
+module.exports = { obtenerInventario, formatearInventarioParaPrompt, buscarPropiedad, formatearFicha, crearContacto };
