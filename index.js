@@ -1,24 +1,20 @@
-// index.js — Vacker Negocios Inmobiliarios — Agente WhatsApp IA (Meta Cloud API)
+// index.js — Vacker Negocios Inmobiliarios — Agente WhatsApp IA (Baileys)
 
 require('dotenv').config();
 
-console.log('[Config] ANTHROPIC_API_KEY:',  process.env.ANTHROPIC_API_KEY  ? 'OK' : 'FALTA');
-console.log('[Config] TOKKO_API_KEY:',       process.env.TOKKO_API_KEY       ? 'OK' : 'FALTA');
-console.log('[Config] WHATSAPP_TOKEN:',      process.env.WHATSAPP_TOKEN      ? 'OK' : 'FALTA');
-console.log('[Config] PHONE_NUMBER_ID:',     process.env.PHONE_NUMBER_ID     ? 'OK' : 'FALTA');
-console.log('[Config] WEBHOOK_VERIFY_TOKEN:', process.env.WEBHOOK_VERIFY_TOKEN ? 'OK' : 'FALTA');
+console.log('[Config] ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY  ? 'OK' : 'FALTA');
+console.log('[Config] TOKKO_API_KEY:',     process.env.TOKKO_API_KEY      ? 'OK' : 'FALTA');
+console.log('[Config] TOKKO_AGENT_ID:',    process.env.TOKKO_AGENT_ID     || 'no configurado');
 
 const http = require('http');
+const { conectar, sendMessage, onMessage } = require('./src/whatsapp');
+const { getReply }                         = require('./src/claude');
+const { addMessage, getLead, updateLead, isActivated } = require('./src/memory');
+const { buscarPropiedad, formatearFicha, crearContacto } = require('./src/tokko');
+const { iniciarScheduler }                 = require('./src/scheduler');
+const { ACTIVATION_TRIGGERS, META_TRIGGERS } = require('./prompts/vacker');
 
-const { getReply }                                              = require('./src/claude');
-const { addMessage, getLead, updateLead, isActivated }         = require('./src/memory');
-const { buscarPropiedad, formatearFicha, crearContacto }       = require('./src/tokko');
-const { iniciarScheduler }                                     = require('./src/scheduler');
-const { sendMessage }                                          = require('./src/whatsapp');
-const { ACTIVATION_TRIGGERS, META_TRIGGERS }                   = require('./prompts/vacker');
-
-const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
-const PORT         = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -27,35 +23,32 @@ function esLeadInmobiliario(texto) {
   return ACTIVATION_TRIGGERS.some(trigger => t.includes(trigger));
 }
 
-function esCanaMeta(texto) {
+function esCanalMeta(texto) {
   const t = texto.toLowerCase().trim();
   return META_TRIGGERS.some(trigger => t.includes(trigger));
 }
 
 // ─── PROCESAMIENTO DE MENSAJE ─────────────────────────────────────────────────
 
-async function procesarMensaje(phone, texto) {
-  const jid = phone;
-
+async function procesarMensaje(jid, texto) {
   const yaActivado = isActivated(jid);
   if (!yaActivado && !esLeadInmobiliario(texto)) {
-    console.log(`[Filtro] Ignorado: ${jid}`);
+    console.log(`[Filtro] Ignorado (no es lead): ${jid}`);
     return;
   }
 
   const lead = getLead(jid);
   if (lead.conversacionCerrada) return;
   if (lead.asesorIntervino) {
-    console.log(`[Filtro] Agente pausado por asesor en: ${jid}`);
+    console.log(`[Filtro] Pausado por asesor: ${jid}`);
     return;
   }
 
-  // Canal de origen
   if (!lead.canal) {
-    updateLead(jid, { canal: esCanaMeta(texto) ? 'meta' : 'portal' });
+    updateLead(jid, { canal: esCanalMeta(texto) ? 'meta' : 'portal' });
   }
 
-  // Fecha futura de disponibilidad
+  // Detectar fecha futura mencionada en meses
   const meses = texto.match(/(\d+)\s*meses?/i);
   if (meses && !lead.disponibleEn) {
     const fecha = new Date();
@@ -92,7 +85,7 @@ async function procesarMensaje(phone, texto) {
 
     if (Object.keys(leadData).length > 0) {
       updateLead(jid, leadData);
-      console.log(`[LeadData] Guardado:`, leadData);
+      console.log('[LeadData] Guardado:', leadData);
     }
 
     if (triggers.leadQualified && !lead.tokkoCreado) {
@@ -115,71 +108,20 @@ async function procesarMensaje(phone, texto) {
   }
 }
 
-// ─── PROCESAMIENTO DE WEBHOOK ─────────────────────────────────────────────────
+// ─── HEALTH CHECK para Railway ────────────────────────────────────────────────
 
-async function procesarWebhook(data) {
-  if (data.object !== 'whatsapp_business_account') return;
-
-  for (const entry of data.entry || []) {
-    for (const change of entry.changes || []) {
-      if (change.field !== 'messages') continue;
-
-      const messages = change.value?.messages || [];
-      for (const msg of messages) {
-        if (msg.type !== 'text') continue;
-        const texto = msg.text?.body || '';
-        if (!texto) continue;
-        await procesarMensaje(msg.from, texto);
-      }
-    }
-  }
-}
-
-// ─── SERVIDOR HTTP ────────────────────────────────────────────────────────────
-
-const server = http.createServer((req, res) => {
-  const url = new URL(req.url, `http://localhost`);
-
-  // GET /webhook — verificación de Meta
-  if (req.method === 'GET' && url.pathname === '/webhook') {
-    const mode      = url.searchParams.get('hub.mode');
-    const token     = url.searchParams.get('hub.verify_token');
-    const challenge = url.searchParams.get('hub.challenge');
-
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('[Webhook] Verificación OK');
-      res.writeHead(200);
-      res.end(challenge);
-    } else {
-      res.writeHead(403);
-      res.end('Forbidden');
-    }
-    return;
-  }
-
-  // POST /webhook — mensajes entrantes
-  if (req.method === 'POST' && url.pathname === '/webhook') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', async () => {
-      // Meta requiere 200 inmediato, antes de procesar
-      res.writeHead(200);
-      res.end('OK');
-      try {
-        await procesarWebhook(JSON.parse(body));
-      } catch (err) {
-        console.error('[Webhook] Error procesando payload:', err.message);
-      }
-    });
-    return;
-  }
-
-  // Health check
+http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Vacker Agent — operativo');
-});
+}).listen(PORT, () => console.log(`[HTTP] Health check en puerto ${PORT}`));
 
-server.listen(PORT, () => {
-  console.log(`[HTTP] Servidor corriendo en puerto ${PORT}`);
+// ─── ARRANQUE ─────────────────────────────────────────────────────────────────
+
+conectar().then(() => {
+  onMessage(procesarMensaje);
   iniciarScheduler(sendMessage);
+  console.log('[Agent] Vacker Agent iniciado ✓');
+}).catch(err => {
+  console.error('[Fatal] No se pudo conectar:', err.message);
+  process.exit(1);
 });
