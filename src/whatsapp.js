@@ -2,6 +2,7 @@
 
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
+const qrcode = require('qrcode-terminal');
 const path = require('path');
 const fs = require('fs');
 
@@ -29,7 +30,6 @@ async function conectar() {
     version,
     auth: state,
     logger: pino({ level: 'silent' }),
-    printQRInTerminal: true,
     browser: ['VackerAgent', 'Chrome', '110.0.0'],
     getMessage: async () => ({ conversation: '' }),
   });
@@ -39,6 +39,7 @@ async function conectar() {
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
     if (qr) {
       console.log('\n[WhatsApp] *** Escaneá este QR con el celular de Ezequiel ***\n');
+      qrcode.generate(qr, { small: true });
     }
 
     if (connection === 'close') {
