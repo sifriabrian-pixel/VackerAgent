@@ -32,7 +32,7 @@ async function obtenerInventario() {
       status: 2, // solo activas
     };
 
-    if (AGENT_ID) params.agent = AGENT_ID;
+    if (AGENT_ID) params.producer = AGENT_ID;
 
     const res = await axios.get(`${BASE_URL}/property/`, { params });
     const propiedades = res.data?.objects || res.data || [];
