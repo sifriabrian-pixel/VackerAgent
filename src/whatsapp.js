@@ -1,8 +1,7 @@
 // whatsapp.js — conexión Baileys (WhatsApp Business de Ezequiel)
 
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
-const qrcode = require('qrcode-terminal');
 const path = require('path');
 const fs = require('fs');
 
@@ -23,10 +22,14 @@ async function conectar() {
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
+  const { version } = await fetchLatestBaileysVersion();
+  console.log('[WhatsApp] Versión WA:', version.join('.'));
+
   sock = makeWASocket({
+    version,
     auth: state,
     logger: pino({ level: 'silent' }),
-    printQRInTerminal: false,
+    printQRInTerminal: true,
     browser: ['VackerAgent', 'Chrome', '110.0.0'],
     getMessage: async () => ({ conversation: '' }),
   });
@@ -35,8 +38,7 @@ async function conectar() {
 
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
     if (qr) {
-      console.log('\n[WhatsApp] Escaneá este QR con el celular de Ezequiel:\n');
-      qrcode.generate(qr, { small: true });
+      console.log('\n[WhatsApp] *** Escaneá este QR con el celular de Ezequiel ***\n');
     }
 
     if (connection === 'close') {
