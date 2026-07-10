@@ -24,27 +24,37 @@ async function obtenerInventario() {
   }
 
   try {
-    const params = {
-      format: 'json',
-      key: API_KEY,
-      lang: 'es_ar',
-      limit: 100,
-      status: 2, // solo activas
-    };
+    // Tokko no permite filtrar por producer en el query, hay que paginar y filtrar client-side
+    const agentId = AGENT_ID ? parseInt(AGENT_ID) : null;
+    let todas = [];
+    let offset = 0;
+    const LIMIT = 100;
 
-    if (AGENT_ID) params.producer = AGENT_ID;
+    while (true) {
+      const res = await axios.get(`${BASE_URL}/property/`, {
+        params: { format: 'json', key: API_KEY, lang: 'es_ar', limit: LIMIT, availability: 2, offset },
+      });
+      const lote = res.data?.objects || [];
+      if (!lote.length) break;
+      todas = todas.concat(lote);
+      const total = res.data?.meta?.total_count || 0;
+      offset += LIMIT;
+      if (offset >= total) break;
+    }
 
-    const res = await axios.get(`${BASE_URL}/property/`, { params });
-    const propiedades = res.data?.objects || res.data || [];
+    // Filtrar por productor/asesor si está configurado
+    const propiedades = agentId
+      ? todas.filter(p => p.id && p.producer?.id === agentId)
+      : todas.filter(p => p.id);
 
-    inventarioCache = propiedades.filter(p => p.id);
+    inventarioCache = propiedades;
     ultimaActualizacion = ahora;
 
-    console.log(`[Tokko] Inventario actualizado: ${inventarioCache.length} propiedades${AGENT_ID ? ` (agente ${AGENT_ID})` : ''}`);
+    console.log(`[Tokko] Inventario: ${propiedades.length} propiedades${agentId ? ` del asesor ${agentId}` : ''} (${todas.length} total cuenta)`);
     return inventarioCache;
   } catch (err) {
     console.error('[Tokko] Error obteniendo inventario:', err?.response?.data || err.message);
-    return inventarioCache; // devuelve el cache anterior si hay error
+    return inventarioCache;
   }
 }
 
