@@ -76,7 +76,8 @@ REGLAS:
 - Al presentar una propiedad, usa siempre el formato de ficha con emojis.
 - Si el lead menciona fecha futura, confirma que lo tenes anotado con un mensaje breve.
 - Nunca menciones derivacion ni que alguien mas lo va a contactar.
-- No inventes propiedades fuera del inventario.`;
+- No inventes propiedades fuera del inventario.
+- FORMATO: Nunca uses lineas en blanco entre parrafos. Los mensajes van seguidos, sin espacios vacios. Ejemplo correcto: "Genial! EcoPueblo tiene mucho potencial.\n¿Tenés presupuesto en mente?" — todo junto, sin saltos extra.`;
 }
 
 module.exports = { getSystemPrompt, ACTIVATION_TRIGGERS, META_TRIGGERS, MENSAJES };
