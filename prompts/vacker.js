@@ -17,16 +17,34 @@ const MENSAJES = {
 
 // ─── TRIGGER STRINGS ─────────────────────────────────────────────────────────
 const ACTIVATION_TRIGGERS = [
+  // Meta / redes
   'vi tu anuncio en instagram',
   'vi tu anuncio en facebook',
-  'me interesa conocer más sobre las propiedades',
-  'me interesa conocer mas sobre las propiedades',
-  'información sobre propiedades',
-  'informacion sobre propiedades',
+  'vi tu anuncio',
+  'vi un anuncio',
+  'vi la publicación',
+  'vi la publicacion',
+  // Portales
   'vi la publicación en zonaprop',
   'vi la publicación en argenprop',
-  'vi la publicación en Mercado Libre',
+  'vi la publicación en mercado libre',
+  'zonaprop.com.ar',
+  'argenprop.com',
+  'mercadolibre.com.ar',
+  'properati.com',
+  // Intención directa
+  'me interesa conocer más sobre las propiedades',
+  'me interesa conocer mas sobre las propiedades',
+  'me interesa esta propiedad',
+  'me interesa la propiedad',
+  'información sobre propiedades',
+  'informacion sobre propiedades',
   'me contacto por la propiedad',
+  'quiero información',
+  'quiero informacion',
+  'consulta por',
+  // Links de vacker (detectado también en código)
+  'vacker.com.ar/p/',
 ];
 
 // Triggers que identifican canal Meta (para crear en Tokko)
