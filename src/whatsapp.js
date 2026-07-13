@@ -1,20 +1,31 @@
 // whatsapp.js — conexión Baileys (WhatsApp Business de Ezequiel)
 
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, proto } = require('@whiskeysockets/baileys');
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore,
+  Browsers,
+} = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
+const NodeCache = require('node-cache');
 const path = require('path');
 const fs = require('fs');
 
-// Guardar sesión en el volumen de Railway si existe, sino local
 const AUTH_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'baileys_auth')
   : path.join(__dirname, '..', 'baileys_auth');
 
+// Estos DEBEN estar fuera del bucle de reconexión
+const msgRetryCounterCache = new NodeCache();
+const messageStore = new Map();
+const jidSendMap = new Map(); // phone@s.whatsapp.net → lid@lid
+
 let sock = null;
 let onMessageCallback = null;
 let currentQR = null;
-const jidSendMap = new Map(); // phone@s.whatsapp.net → lid@lid para enrutamiento
 
 function getQR() { return currentQR; }
 
@@ -26,16 +37,25 @@ async function conectar() {
   if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-
   const { version } = await fetchLatestBaileysVersion();
   console.log('[WhatsApp] Versión WA:', version.join('.'));
 
+  const logger = pino({ level: 'silent' });
+
   sock = makeWASocket({
     version,
-    auth: state,
-    logger: pino({ level: 'silent' }),
-    browser: ['VackerAgent', 'Chrome', '110.0.0'],
-    getMessage: async () => ({ conversation: '' }),
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, logger),
+    },
+    msgRetryCounterCache,
+    logger,
+    browser: Browsers.ubuntu('Chrome'),
+    generateHighQualityLinkPreview: false,
+    getMessage: async (key) => {
+      const stored = messageStore.get(key.id);
+      return stored?.message || undefined;
+    },
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -60,7 +80,6 @@ async function conectar() {
     }
   });
 
-  // Monitorear estado de entrega de mensajes enviados
   sock.ev.on('messages.update', updates => {
     for (const update of updates) {
       if (update.key.fromMe) {
@@ -70,6 +89,11 @@ async function conectar() {
   });
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    // Guardar todos los mensajes para getMessage (retry de Signal Protocol)
+    for (const msg of messages) {
+      if (msg.key?.id) messageStore.set(msg.key.id, msg);
+    }
+
     if (type !== 'notify') return;
 
     for (const msg of messages) {
@@ -77,13 +101,12 @@ async function conectar() {
       if (!msg.message) continue;
 
       const rawJid = msg.key.remoteJid;
-      if (!rawJid || rawJid.endsWith('@g.us')) continue; // ignorar grupos
+      if (!rawJid || rawJid.endsWith('@g.us')) continue;
 
-      // @lid es el JID de enrutamiento multidevice — guardarlo para enviar
-      // pero usar senderPn (número real) para memoria/tracking
       const jid = rawJid.endsWith('@lid') && msg.key.senderPn
         ? msg.key.senderPn
         : rawJid;
+
       if (rawJid.endsWith('@lid') && msg.key.senderPn) {
         jidSendMap.set(msg.key.senderPn, rawJid);
       }
@@ -94,12 +117,11 @@ async function conectar() {
 
       if (!texto.trim()) continue;
 
-      const sendJid = jidSendMap.get(jid) || jid;
-      console.log(`[Msg IN] ${jid} (sendJid: ${sendJid}): ${texto.substring(0, 60)}`);
+      console.log(`[Msg IN] ${jid}: ${texto.substring(0, 60)}`);
 
       if (onMessageCallback) {
         try {
-          await onMessageCallback(jid, texto, sendJid);
+          await onMessageCallback(jid, texto);
         } catch (err) {
           console.error('[WhatsApp] Error procesando mensaje:', err.message);
         }
@@ -115,15 +137,14 @@ async function sendMessage(phoneJid, texto) {
     console.error('[WhatsApp] Socket no inicializado');
     return;
   }
-  // Usar @lid para enrutamiento multidevice si está disponible
   const sendJid = jidSendMap.get(phoneJid) || phoneJid;
   try {
-    await sock.assertSessions([sendJid]);
     await sock.presenceSubscribe(sendJid);
     await new Promise(r => setTimeout(r, 800));
     await sock.sendPresenceUpdate('composing', sendJid);
     await new Promise(r => setTimeout(r, 1500));
     const result = await sock.sendMessage(sendJid, { text: texto });
+    if (result?.key?.id) messageStore.set(result.key.id, result);
     await sock.sendPresenceUpdate('paused', sendJid);
     console.log(`[Msg OUT] ${phoneJid} via ${sendJid}: ${texto.substring(0, 60)}`);
     console.log(`[Msg ID] ${result?.key?.id}`);
