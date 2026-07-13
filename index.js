@@ -7,7 +7,8 @@ console.log('[Config] TOKKO_API_KEY:',     process.env.TOKKO_API_KEY      ? 'OK'
 console.log('[Config] TOKKO_AGENT_ID:',    process.env.TOKKO_AGENT_ID     || 'no configurado');
 
 const http = require('http');
-const { conectar, sendMessage, onMessage } = require('./src/whatsapp');
+const { conectar, sendMessage, onMessage, getQR } = require('./src/whatsapp');
+const QRCode = require('qrcode');
 const { getReply }                         = require('./src/claude');
 const { addMessage, getLead, updateLead, isActivated } = require('./src/memory');
 const { buscarPropiedad, formatearFicha, crearContacto } = require('./src/tokko');
@@ -108,12 +109,27 @@ async function procesarMensaje(jid, texto) {
   }
 }
 
-// ─── HEALTH CHECK para Railway ────────────────────────────────────────────────
+// ─── SERVIDOR HTTP ────────────────────────────────────────────────────────────
 
-http.createServer((req, res) => {
+http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://localhost`);
+
+  if (url.pathname === '/qr') {
+    const qr = getQR();
+    if (!qr) {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end('<html><body style="background:#111;color:#0f0;font-family:monospace;padding:40px"><h2>WhatsApp ya esta conectado o el QR aun no se genero.</h2><p>Recarga en unos segundos si acabas de iniciar el servidor.</p></body></html>');
+      return;
+    }
+    const dataUrl = await QRCode.toDataURL(qr, { width: 400, margin: 2 });
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(`<html><head><meta http-equiv="refresh" content="30"><title>VackerAgent QR</title></head><body style="background:#111;color:#fff;font-family:monospace;text-align:center;padding:40px"><h2>Escaneá con WhatsApp Business de Ezequiel</h2><p>Dispositivos vinculados → Vincular un dispositivo</p><img src="${dataUrl}" style="border:8px solid white;border-radius:12px"/><p style="color:#888">Se recarga solo cada 30 segundos</p></body></html>`);
+    return;
+  }
+
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Vacker Agent — operativo');
-}).listen(PORT, () => console.log(`[HTTP] Health check en puerto ${PORT}`));
+  res.end('Vacker Agent operativo');
+}).listen(PORT, () => console.log(`[HTTP] Servidor en puerto ${PORT}`));
 
 // ─── ARRANQUE ─────────────────────────────────────────────────────────────────
 

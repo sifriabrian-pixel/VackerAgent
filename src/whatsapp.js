@@ -13,6 +13,9 @@ const AUTH_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
 
 let sock = null;
 let onMessageCallback = null;
+let currentQR = null;
+
+function getQR() { return currentQR; }
 
 function onMessage(callback) {
   onMessageCallback = callback;
@@ -38,7 +41,8 @@ async function conectar() {
 
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
     if (qr) {
-      console.log('\n[WhatsApp] *** Escaneá este QR con el celular de Ezequiel ***\n');
+      currentQR = qr;
+      console.log('\n[WhatsApp] *** QR listo — abrí /qr en el dominio de Railway ***\n');
       qrcode.generate(qr, { small: true });
     }
 
@@ -50,6 +54,7 @@ async function conectar() {
     }
 
     if (connection === 'open') {
+      currentQR = null;
       console.log('[WhatsApp] Conectado al WhatsApp de Ezequiel ✓');
     }
   });
@@ -94,4 +99,4 @@ async function sendMessage(jid, texto) {
   console.log(`[Msg OUT] ${jid}: ${texto.substring(0, 60)}`);
 }
 
-module.exports = { conectar, sendMessage, onMessage };
+module.exports = { conectar, sendMessage, onMessage, getQR };
