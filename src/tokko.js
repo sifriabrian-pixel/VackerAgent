@@ -58,6 +58,15 @@ async function obtenerInventario() {
   }
 }
 
+function generarUrlVacker(p) {
+  const titulo = p.publication_title || p.address || '';
+  const slug = titulo
+    .replace(/ - /g, '-')
+    .replace(/²/g, '2').replace(/³/g, '3')
+    .replace(/\s+/g, '-');
+  return `https://www.vacker.com.ar/p/${p.id}-${slug}`;
+}
+
 function formatearInventarioParaPrompt(propiedades) {
   if (!propiedades.length) return 'Sin propiedades disponibles en este momento.';
 
@@ -71,7 +80,7 @@ function formatearInventarioParaPrompt(propiedades) {
       ? `${ops.prices[0].currency} ${ops.prices[0].price?.toLocaleString('es-AR')}`
       : 'Consultar';
 
-    const url = p.public_url ? `\n🔗 ${p.public_url}` : '';
+    const url = `\n🔗 ${generarUrlVacker(p)}`;
     return `PROPIEDAD ${i + 1} (ID: ${p.id}):
 🏠 ${p.publication_title || p.address}
 📍 ${p.address || '—'} | 🏙️ ${p.location?.name || '—'}
@@ -129,7 +138,7 @@ function formatearFicha(prop) {
     ? `${ops.prices[0].currency} ${ops.prices[0].price?.toLocaleString('es-AR')}`
     : 'Consultar';
 
-  const url = prop.public_url ? `\n🔗 Ver ficha: ${prop.public_url}` : '';
+  const url = `\n🔗 Ver en web: ${generarUrlVacker(prop)}`;
   return `🏠 ${prop.publication_title || prop.address}
 📍 Dirección: ${prop.address || '—'}
 🏙️ Barrio: ${prop.location?.name || '—'}
