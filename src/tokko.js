@@ -51,6 +51,11 @@ async function obtenerInventario() {
     ultimaActualizacion = ahora;
 
     console.log(`[Tokko] Inventario: ${propiedades.length} propiedades${agentId ? ` del asesor ${agentId}` : ''} (${todas.length} total cuenta)`);
+    if (propiedades.length > 0) {
+      const p = propiedades[0];
+      console.log('[Tokko URL] Campos disponibles:', Object.keys(p).filter(k => k.includes('url') || k.includes('link') || k.includes('web') || k.includes('public')));
+      console.log('[Tokko URL] public_url:', p.public_url, '| web_url:', p.web_url, '| share_url:', p.share_url);
+    }
     return inventarioCache;
   } catch (err) {
     console.error('[Tokko] Error obteniendo inventario:', err?.response?.data || err.message);

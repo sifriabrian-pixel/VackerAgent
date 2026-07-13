@@ -143,7 +143,7 @@ async function sendMessage(phoneJid, texto) {
     await new Promise(r => setTimeout(r, 800));
     await sock.sendPresenceUpdate('composing', sendJid);
     await new Promise(r => setTimeout(r, 1500));
-    const result = await sock.sendMessage(sendJid, { text: texto });
+    const result = await sock.sendMessage(sendJid, { text: texto, linkPreview: false });
     if (result?.key?.id) messageStore.set(result.key.id, result);
     await sock.sendPresenceUpdate('paused', sendJid);
     console.log(`[Msg OUT] ${phoneJid} via ${sendJid}: ${texto.substring(0, 60)}`);
