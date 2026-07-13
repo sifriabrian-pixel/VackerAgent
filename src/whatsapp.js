@@ -90,6 +90,7 @@ async function conectar() {
       if (!texto.trim()) continue;
 
       console.log(`[Msg IN] ${jid}: ${texto.substring(0, 60)}`);
+      console.log(`[Key DEBUG] ${JSON.stringify(msg.key)}`);
 
       if (onMessageCallback) {
         try {
