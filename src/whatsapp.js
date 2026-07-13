@@ -66,8 +66,10 @@ async function conectar() {
       if (msg.key.fromMe) continue;
       if (!msg.message) continue;
 
-      const jid = msg.key.remoteJid;
-      if (!jid || jid.endsWith('@g.us')) continue; // ignorar grupos
+      const rawJid = msg.key.remoteJid;
+      if (!rawJid || rawJid.endsWith('@g.us')) continue; // ignorar grupos
+      // @lid es formato interno de Baileys — normalizar a @s.whatsapp.net para enviar
+      const jid = rawJid.replace('@lid', '@s.whatsapp.net');
 
       const texto = msg.message.conversation
         || msg.message.extendedTextMessage?.text
