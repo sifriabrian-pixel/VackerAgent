@@ -199,4 +199,18 @@ function buildComentario(lead) {
   return partes.join(' ');
 }
 
-module.exports = { obtenerInventario, formatearInventarioParaPrompt, buscarPropiedad, formatearFicha, crearContacto };
+const PORTALES_EXTERNOS = [
+  { nombre: 'ZonaProp', dominio: 'zonaprop.com.ar' },
+  { nombre: 'Argenprop', dominio: 'argenprop.com' },
+  { nombre: 'MercadoLibre', dominio: 'inmuebles.mercadolibre.com.ar' },
+  { nombre: 'Properati', dominio: 'properati.com.ar' },
+  { nombre: 'Navent', dominio: 'navent.com' },
+];
+
+function detectarPortal(texto) {
+  const t = texto.toLowerCase();
+  const match = PORTALES_EXTERNOS.find(p => t.includes(p.dominio));
+  return match ? match.nombre : null;
+}
+
+module.exports = { obtenerInventario, formatearInventarioParaPrompt, buscarPropiedad, formatearFicha, crearContacto, detectarPortal };

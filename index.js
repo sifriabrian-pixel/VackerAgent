@@ -58,9 +58,13 @@ async function procesarMensaje(jid, texto) {
     console.log(`[FechaFutura] ${jid} disponible en ${meses[1]} mes(es)`);
   }
 
-  // Buscar propiedad en Tokko si hay link en el mensaje
+  // Detectar links de portales externos (ZonaProp, MercadoLibre, etc.)
+  const { detectarPortal } = require('./src/tokko');
+  const portalExterno = detectarPortal(texto);
+
+  // Buscar propiedad en Tokko si hay link de vacker o mención directa
   let fichaTokko = null;
-  if (!lead.propiedadTokkoId) {
+  if (!lead.propiedadTokkoId && !portalExterno) {
     const prop = await buscarPropiedad(texto);
     if (prop) {
       fichaTokko = formatearFicha(prop);
@@ -69,9 +73,12 @@ async function procesarMensaje(jid, texto) {
     }
   }
 
-  const mensajeParaClaude = fichaTokko
-    ? `${texto}\n\n[FICHA DE LA PROPIEDAD ENCONTRADA EN TOKKO]\n${fichaTokko}`
-    : texto;
+  let mensajeParaClaude = texto;
+  if (fichaTokko) {
+    mensajeParaClaude += `\n\n[FICHA DE LA PROPIEDAD ENCONTRADA EN TOKKO]\n${fichaTokko}`;
+  } else if (portalExterno) {
+    mensajeParaClaude += `\n\n[CONTEXTO: El lead llegó desde ${portalExterno}. No tenés acceso a ese portal. Pedile la dirección o nombre de la propiedad que le interesa para buscarla en tu inventario.]`;
+  }
 
   addMessage(jid, 'user', mensajeParaClaude);
   console.log(`[Mensaje] ${jid}: ${texto.substring(0, 60)}`);
