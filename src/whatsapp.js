@@ -14,6 +14,7 @@ const AUTH_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
 let sock = null;
 let onMessageCallback = null;
 let currentQR = null;
+const jidSendMap = new Map(); // phone@s.whatsapp.net → lid@lid para enrutamiento
 
 function getQR() { return currentQR; }
 
@@ -78,10 +79,14 @@ async function conectar() {
       const rawJid = msg.key.remoteJid;
       if (!rawJid || rawJid.endsWith('@g.us')) continue; // ignorar grupos
 
-      // @lid es un ID interno — usar senderPn que tiene el número real
+      // @lid es el JID de enrutamiento multidevice — guardarlo para enviar
+      // pero usar senderPn (número real) para memoria/tracking
       const jid = rawJid.endsWith('@lid') && msg.key.senderPn
         ? msg.key.senderPn
         : rawJid;
+      if (rawJid.endsWith('@lid') && msg.key.senderPn) {
+        jidSendMap.set(msg.key.senderPn, rawJid);
+      }
 
       const texto = msg.message.conversation
         || msg.message.extendedTextMessage?.text
@@ -89,12 +94,12 @@ async function conectar() {
 
       if (!texto.trim()) continue;
 
-      console.log(`[Msg IN] ${jid}: ${texto.substring(0, 60)}`);
-      console.log(`[Key DEBUG] ${JSON.stringify(msg.key)}`);
+      const sendJid = jidSendMap.get(jid) || jid;
+      console.log(`[Msg IN] ${jid} (sendJid: ${sendJid}): ${texto.substring(0, 60)}`);
 
       if (onMessageCallback) {
         try {
-          await onMessageCallback(jid, texto);
+          await onMessageCallback(jid, texto, sendJid);
         } catch (err) {
           console.error('[WhatsApp] Error procesando mensaje:', err.message);
         }
@@ -105,21 +110,22 @@ async function conectar() {
   return sock;
 }
 
-async function sendMessage(jid, texto) {
+async function sendMessage(phoneJid, texto) {
   if (!sock) {
     console.error('[WhatsApp] Socket no inicializado');
     return;
   }
+  // Usar @lid para enrutamiento multidevice si está disponible
+  const sendJid = jidSendMap.get(phoneJid) || phoneJid;
   try {
-    // Forzar establecimiento de claves Signal antes de enviar
-    await sock.assertSessions([jid]);
-    await sock.presenceSubscribe(jid);
+    await sock.assertSessions([sendJid]);
+    await sock.presenceSubscribe(sendJid);
     await new Promise(r => setTimeout(r, 800));
-    await sock.sendPresenceUpdate('composing', jid);
+    await sock.sendPresenceUpdate('composing', sendJid);
     await new Promise(r => setTimeout(r, 1500));
-    const result = await sock.sendMessage(jid, { text: texto });
-    await sock.sendPresenceUpdate('paused', jid);
-    console.log(`[Msg OUT] ${jid}: ${texto.substring(0, 60)}`);
+    const result = await sock.sendMessage(sendJid, { text: texto });
+    await sock.sendPresenceUpdate('paused', sendJid);
+    console.log(`[Msg OUT] ${phoneJid} via ${sendJid}: ${texto.substring(0, 60)}`);
     console.log(`[Msg ID] ${result?.key?.id}`);
   } catch (err) {
     console.error('[ERROR sendMessage]', err.message, err.stack?.split('\n')[1]);
