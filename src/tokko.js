@@ -51,10 +51,6 @@ async function obtenerInventario() {
     ultimaActualizacion = ahora;
 
     console.log(`[Tokko] Inventario: ${propiedades.length} propiedades${agentId ? ` del asesor ${agentId}` : ''} (${todas.length} total cuenta)`);
-    if (propiedades.length > 0) {
-      const p = propiedades[0];
-      console.log('[Tokko URL DEBUG] web_url:', p.web_url, '| public_url:', p.public_url, '| id:', p.id);
-    }
     return inventarioCache;
   } catch (err) {
     console.error('[Tokko] Error obteniendo inventario:', err?.response?.data || err.message);
@@ -75,12 +71,11 @@ function formatearInventarioParaPrompt(propiedades) {
       ? `${ops.prices[0].currency} ${ops.prices[0].price?.toLocaleString('es-AR')}`
       : 'Consultar';
 
-    return `PROPIEDAD ${i + 1} (ID: ${p.id}):
+    return `PROPIEDAD ${i + 1} (ID Tokko: ${p.id}):
 🏠 ${p.publication_title || p.address}
 📍 ${p.address || '—'} | 🏙️ ${p.location?.name || '—'}
 📋 ${operacion} | 💰 ${precio}
-✨ ${p.room_amount || '—'} amb | 🛏️ ${p.bedroom_amount || '—'} hab | 🚿 ${p.bathroom_amount || '—'} baños | 📐 ${p.total_surface ? p.total_surface + 'm²' : '—'}
-🔗 https://www.vacker.com.ar/p/${p.id}`;
+✨ ${p.room_amount || '—'} amb | 🛏️ ${p.bedroom_amount || '—'} hab | 🚿 ${p.bathroom_amount || '—'} baños | 📐 ${p.total_surface ? p.total_surface + 'm²' : '—'}`;
   }).join('\n\n');
 }
 
@@ -142,7 +137,7 @@ function formatearFicha(prop) {
 🛏️ Habitaciones: ${prop.bedroom_amount || '—'}
 🚿 Baños: ${prop.bathroom_amount || '—'}
 📐 Superficie total: ${prop.total_surface ? prop.total_surface + 'm²' : '—'}
-🔗 Ver ficha completa: https://www.vacker.com.ar/p/${prop.id}`;
+🔑 ID Tokko: ${prop.id}`;
 }
 
 // ─── CREAR CONSULTA EN TOKKO (solo para leads de Meta) ───────────────────────
