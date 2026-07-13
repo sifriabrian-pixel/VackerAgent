@@ -40,7 +40,7 @@ async function conectar() {
   const { version } = await fetchLatestBaileysVersion();
   console.log('[WhatsApp] Versión WA:', version.join('.'));
 
-  const logger = pino({ level: 'silent' });
+  const logger = pino({ level: 'warn' });
 
   sock = makeWASocket({
     version,
