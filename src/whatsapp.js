@@ -101,15 +101,15 @@ async function sendMessage(jid, texto) {
     return;
   }
   try {
-    // Verificar que el número existe en WhatsApp
-    const phoneNumber = jid.replace('@s.whatsapp.net', '').replace('@lid', '');
-    const [check] = await sock.onWhatsApp(phoneNumber);
-    console.log(`[DEBUG onWhatsApp] exists:${check?.exists} jid:${check?.jid}`);
-
-    const targetJid = check?.jid || jid;
-    const result = await sock.sendMessage(targetJid, { text: texto });
-    console.log(`[Msg OUT] ${targetJid}: ${texto.substring(0, 60)}`);
-    console.log(`[DEBUG result.key]`, JSON.stringify(result?.key));
+    // Suscribirse al contacto para obtener sus claves de sesión
+    await sock.presenceSubscribe(jid);
+    await new Promise(r => setTimeout(r, 1000));
+    // Simular que está escribiendo (establece sesión y parece más humano)
+    await sock.sendPresenceUpdate('composing', jid);
+    await new Promise(r => setTimeout(r, 1500));
+    await sock.sendMessage(jid, { text: texto });
+    await sock.sendPresenceUpdate('paused', jid);
+    console.log(`[Msg OUT] ${jid}: ${texto.substring(0, 60)}`);
   } catch (err) {
     console.error('[ERROR sendMessage]', err.message);
   }
