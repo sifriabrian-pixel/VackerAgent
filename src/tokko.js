@@ -51,11 +51,6 @@ async function obtenerInventario() {
     ultimaActualizacion = ahora;
 
     console.log(`[Tokko] Inventario: ${propiedades.length} propiedades${agentId ? ` del asesor ${agentId}` : ''} (${todas.length} total cuenta)`);
-    if (propiedades.length > 0) {
-      const p = propiedades[0];
-      console.log('[Tokko URL] Campos disponibles:', Object.keys(p).filter(k => k.includes('url') || k.includes('link') || k.includes('web') || k.includes('public')));
-      console.log('[Tokko URL] public_url:', p.public_url, '| web_url:', p.web_url, '| share_url:', p.share_url);
-    }
     return inventarioCache;
   } catch (err) {
     console.error('[Tokko] Error obteniendo inventario:', err?.response?.data || err.message);
@@ -76,11 +71,12 @@ function formatearInventarioParaPrompt(propiedades) {
       ? `${ops.prices[0].currency} ${ops.prices[0].price?.toLocaleString('es-AR')}`
       : 'Consultar';
 
-    return `PROPIEDAD ${i + 1} (ID Tokko: ${p.id}):
+    const url = p.public_url ? `\n🔗 ${p.public_url}` : '';
+    return `PROPIEDAD ${i + 1} (ID: ${p.id}):
 🏠 ${p.publication_title || p.address}
 📍 ${p.address || '—'} | 🏙️ ${p.location?.name || '—'}
 📋 ${operacion} | 💰 ${precio}
-✨ ${p.room_amount || '—'} amb | 🛏️ ${p.bedroom_amount || '—'} hab | 🚿 ${p.bathroom_amount || '—'} baños | 📐 ${p.total_surface ? p.total_surface + 'm²' : '—'}`;
+✨ ${p.room_amount || '—'} amb | 🛏️ ${p.bedroom_amount || '—'} hab | 🚿 ${p.bathroom_amount || '—'} baños | 📐 ${p.total_surface ? p.total_surface + 'm²' : '—'}${url}`;
   }).join('\n\n');
 }
 
@@ -133,6 +129,7 @@ function formatearFicha(prop) {
     ? `${ops.prices[0].currency} ${ops.prices[0].price?.toLocaleString('es-AR')}`
     : 'Consultar';
 
+  const url = prop.public_url ? `\n🔗 Ver ficha: ${prop.public_url}` : '';
   return `🏠 ${prop.publication_title || prop.address}
 📍 Dirección: ${prop.address || '—'}
 🏙️ Barrio: ${prop.location?.name || '—'}
@@ -141,8 +138,7 @@ function formatearFicha(prop) {
 ✨ Ambientes: ${prop.room_amount || '—'}
 🛏️ Habitaciones: ${prop.bedroom_amount || '—'}
 🚿 Baños: ${prop.bathroom_amount || '—'}
-📐 Superficie total: ${prop.total_surface ? prop.total_surface + 'm²' : '—'}
-🔑 ID Tokko: ${prop.id}`;
+📐 Superficie total: ${prop.total_surface ? prop.total_surface + 'm²' : '—'}${url}`;
 }
 
 // ─── CREAR CONSULTA EN TOKKO (solo para leads de Meta) ───────────────────────
