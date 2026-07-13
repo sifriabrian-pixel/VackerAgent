@@ -51,6 +51,10 @@ async function obtenerInventario() {
     ultimaActualizacion = ahora;
 
     console.log(`[Tokko] Inventario: ${propiedades.length} propiedades${agentId ? ` del asesor ${agentId}` : ''} (${todas.length} total cuenta)`);
+    if (propiedades.length > 0) {
+      const p = propiedades[0];
+      console.log('[Tokko URL DEBUG] web_url:', p.web_url, '| public_url:', p.public_url, '| id:', p.id);
+    }
     return inventarioCache;
   } catch (err) {
     console.error('[Tokko] Error obteniendo inventario:', err?.response?.data || err.message);
