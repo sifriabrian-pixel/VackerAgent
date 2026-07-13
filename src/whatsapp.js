@@ -66,8 +66,13 @@ async function conectar() {
       if (msg.key.fromMe) continue;
       if (!msg.message) continue;
 
-      const jid = msg.key.remoteJid;
-      if (!jid || jid.endsWith('@g.us')) continue; // ignorar grupos
+      const rawJid = msg.key.remoteJid;
+      if (!rawJid || rawJid.endsWith('@g.us')) continue; // ignorar grupos
+
+      // @lid es un ID interno — usar senderPn que tiene el número real
+      const jid = rawJid.endsWith('@lid') && msg.key.senderPn
+        ? msg.key.senderPn
+        : rawJid;
 
       const texto = msg.message.conversation
         || msg.message.extendedTextMessage?.text
@@ -75,10 +80,6 @@ async function conectar() {
 
       if (!texto.trim()) continue;
 
-      // DEBUG — para identificar el JID correcto de respuesta
-      console.log('[DEBUG msg.key]', JSON.stringify(msg.key));
-      console.log('[DEBUG pushName]', msg.pushName);
-      console.log('[DEBUG participant]', msg.participant);
       console.log(`[Msg IN] ${jid}: ${texto.substring(0, 60)}`);
 
       if (onMessageCallback) {
