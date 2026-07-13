@@ -59,6 +59,15 @@ async function conectar() {
     }
   });
 
+  // Monitorear estado de entrega de mensajes enviados
+  sock.ev.on('messages.update', updates => {
+    for (const update of updates) {
+      if (update.key.fromMe) {
+        console.log(`[STATUS] msg ${update.key.id} → status: ${update.update?.status}`);
+      }
+    }
+  });
+
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
 
