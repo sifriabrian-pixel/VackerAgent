@@ -75,6 +75,10 @@ async function conectar() {
 
       if (!texto.trim()) continue;
 
+      // DEBUG — para identificar el JID correcto de respuesta
+      console.log('[DEBUG msg.key]', JSON.stringify(msg.key));
+      console.log('[DEBUG pushName]', msg.pushName);
+      console.log('[DEBUG participant]', msg.participant);
       console.log(`[Msg IN] ${jid}: ${texto.substring(0, 60)}`);
 
       if (onMessageCallback) {
