@@ -1,6 +1,6 @@
 // whatsapp.js — conexión Baileys (WhatsApp Business de Ezequiel)
 
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, proto } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
@@ -110,17 +110,18 @@ async function sendMessage(jid, texto) {
     return;
   }
   try {
-    // Suscribirse al contacto para obtener sus claves de sesión
+    // Forzar establecimiento de claves Signal antes de enviar
+    await sock.assertSessions([jid]);
     await sock.presenceSubscribe(jid);
-    await new Promise(r => setTimeout(r, 1000));
-    // Simular que está escribiendo (establece sesión y parece más humano)
+    await new Promise(r => setTimeout(r, 800));
     await sock.sendPresenceUpdate('composing', jid);
     await new Promise(r => setTimeout(r, 1500));
-    await sock.sendMessage(jid, { text: texto });
+    const result = await sock.sendMessage(jid, { text: texto });
     await sock.sendPresenceUpdate('paused', jid);
     console.log(`[Msg OUT] ${jid}: ${texto.substring(0, 60)}`);
+    console.log(`[Msg ID] ${result?.key?.id}`);
   } catch (err) {
-    console.error('[ERROR sendMessage]', err.message);
+    console.error('[ERROR sendMessage]', err.message, err.stack?.split('\n')[1]);
   }
 }
 
