@@ -100,8 +100,19 @@ async function sendMessage(jid, texto) {
     console.error('[WhatsApp] Socket no inicializado');
     return;
   }
-  await sock.sendMessage(jid, { text: texto });
-  console.log(`[Msg OUT] ${jid}: ${texto.substring(0, 60)}`);
+  try {
+    // Verificar que el número existe en WhatsApp
+    const phoneNumber = jid.replace('@s.whatsapp.net', '').replace('@lid', '');
+    const [check] = await sock.onWhatsApp(phoneNumber);
+    console.log(`[DEBUG onWhatsApp] exists:${check?.exists} jid:${check?.jid}`);
+
+    const targetJid = check?.jid || jid;
+    const result = await sock.sendMessage(targetJid, { text: texto });
+    console.log(`[Msg OUT] ${targetJid}: ${texto.substring(0, 60)}`);
+    console.log(`[DEBUG result.key]`, JSON.stringify(result?.key));
+  } catch (err) {
+    console.error('[ERROR sendMessage]', err.message);
+  }
 }
 
 module.exports = { conectar, sendMessage, onMessage, getQR };
