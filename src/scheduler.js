@@ -1,8 +1,9 @@
 // scheduler.js — cron jobs para follow-ups, reminders y post-visita
 
 const cron = require('node-cron');
-const { getAllLeads, updateLead } = require('./memory');
+const { getAllLeads, getLead, updateLead } = require('./memory');
 const { MENSAJES } = require('../prompts/vacker');
+const { sincronizarVisitas } = require('./calendar');
 
 const HORA_INICIO = parseInt(process.env.FOLLOWUP_HOUR_START || '9');
 const HORA_FIN    = parseInt(process.env.FOLLOWUP_HOUR_END   || '20');
@@ -15,6 +16,11 @@ function enHorarioPermitido() {
 function iniciarScheduler(sendMessage) {
   // Corre cada 30 minutos
   cron.schedule('*/30 * * * *', async () => {
+    // Sincronizar visitas desde Google Calendar (siempre, no solo en horario)
+    await sincronizarVisitas(getLead, updateLead).catch(err =>
+      console.error('[Scheduler] Error calendar sync:', err.message)
+    );
+
     if (!enHorarioPermitido()) return;
 
     const ahora = Date.now();
