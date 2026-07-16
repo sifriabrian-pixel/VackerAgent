@@ -3,19 +3,19 @@
 // ─── MENSAJES FIJOS ───────────────────────────────────────────────────────────
 const MENSAJES = {
   reminder: (fecha) =>
-    `Hola! Te escribo de parte de Ezequiel Olivera de Vacker Negocios Inmobiliarios para recordarte que tenés una visita agendada${fecha ? ` para el ${fecha}` : ''}. ¿Confirmamos? 😊`,
+    `Hola! Te escribo de parte de Ezequiel Olivera de Vacker Negocios Inmobiliarios para recordarte que tenés una visita agendada${fecha ? ` para el ${fecha}` : ''}. Confirmamos?`,
 
   postVisita:
-    `Hola! ¿Cómo te fue con la visita? ¿Qué te pareció la propiedad? Si tenés alguna consulta o querés ver otras opciones, avisame. 🏠`,
+    `Hola! Como te fue con la visita? Que te parecio la propiedad? Si tenes alguna consulta o queres ver otras opciones, avisame.`,
 
   followup24:
-    `Hola! Te escribo de Vacker, quería retomarte por si te quedó alguna duda sobre la propiedad. Estoy disponible para lo que necesites. 😊`,
+    `Hola! Te escribo de Vacker, queria retomarte por si te quedo alguna duda sobre la propiedad. Estoy disponible para lo que necesites.`,
 
   followup48:
-    `Hola! Solo quería saber si pudiste ver la propiedad o si te surgió alguna pregunta. Cualquier cosa me avisás. 🙌`,
+    `Hola! Solo queria saber si pudiste ver la propiedad o si te surgio alguna pregunta. Cualquier cosa me avisas.`,
 
   followup72:
-    `Hola, último mensaje de nuestra parte. Si en algún momento retomás la búsqueda, no dudes en escribirnos. ¡Éxitos!`,
+    `Hola, ultimo mensaje de nuestra parte. Si en algun momento retomas la busqueda, no dudes en escribirnos. Exitos!`,
 };
 
 // ─── TRIGGER STRINGS ─────────────────────────────────────────────────────────
@@ -107,6 +107,7 @@ TOKENS (invisibles para el lead, los incluís dentro de tu respuesta cuando corr
 - [FUTURE_DATE] si menciona que el dinero lo tiene disponible en una fecha futura
 
 REGLAS DURAS:
+- No uses emojis en ningún mensaje.
 - Nunca inventes propiedades que no estén en el inventario.
 - Nunca menciones que alguien más lo va a contactar.
 - Si el lead pregunta el precio, dalo directo.
