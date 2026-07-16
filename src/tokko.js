@@ -138,6 +138,9 @@ function formatearFicha(prop) {
     ? `${ops.prices[0].currency} ${ops.prices[0].price?.toLocaleString('es-AR')}`
     : 'Consultar';
 
+  const tags = (prop.tags || []).map(t => t.name || t).filter(Boolean);
+  const tagsTxt = tags.length ? `\n🏷️ Características: ${tags.join(', ')}` : '';
+  const desc = prop.description ? `\n📝 Descripción: ${prop.description.replace(/<[^>]*>/g, '').slice(0, 400)}` : '';
   const url = `\n🔗 Ver en web: ${generarUrlVacker(prop)}`;
   return `🏠 ${prop.publication_title || prop.address}
 📍 Dirección: ${prop.address || '—'}
@@ -147,7 +150,7 @@ function formatearFicha(prop) {
 ✨ Ambientes: ${prop.room_amount || '—'}
 🛏️ Habitaciones: ${prop.bedroom_amount || '—'}
 🚿 Baños: ${prop.bathroom_amount || '—'}
-📐 Superficie total: ${prop.total_surface ? prop.total_surface + 'm²' : '—'}${url}`;
+📐 Superficie total: ${prop.total_surface ? prop.total_surface + 'm²' : '—'}${tagsTxt}${desc}${url}`;
 }
 
 // ─── CREAR CONSULTA EN TOKKO (solo para leads de Meta) ───────────────────────
