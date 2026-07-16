@@ -6,11 +6,14 @@ const { MENSAJES } = require('../prompts/vacker');
 const { sincronizarVisitas } = require('./calendar');
 
 const HORA_INICIO = parseInt(process.env.FOLLOWUP_HOUR_START || '9');
-const HORA_FIN    = parseInt(process.env.FOLLOWUP_HOUR_END   || '20');
+const HORA_FIN    = parseInt(process.env.FOLLOWUP_HOUR_END   || '18');
 
 function enHorarioPermitido() {
-  const hora = new Date().getHours();
-  return hora >= HORA_INICIO && hora < HORA_FIN;
+  const ahora = new Date();
+  const hora = ahora.getHours();
+  const dia  = ahora.getDay(); // 0=domingo, 6=sábado
+  const esLaborable = dia >= 1 && dia <= 5;
+  return esLaborable && hora >= HORA_INICIO && hora < HORA_FIN;
 }
 
 function iniciarScheduler(sendMessage) {
@@ -41,7 +44,13 @@ function iniciarScheduler(sendMessage) {
 
       if (!lead.handoffHecho && lead.followup24Enviado && !lead.followup48Enviado && horasDesdeUltimo >= 48) {
         await sendMessage(lead.jid, MENSAJES.followup48);
-        updateLead(lead.jid, { followup48Enviado: true, conversacionCerrada: true });
+        updateLead(lead.jid, { followup48Enviado: true });
+        continue;
+      }
+
+      if (!lead.handoffHecho && lead.followup48Enviado && !lead.followup72Enviado && horasDesdeUltimo >= 72) {
+        await sendMessage(lead.jid, MENSAJES.followup72);
+        updateLead(lead.jid, { followup72Enviado: true, conversacionCerrada: true });
         continue;
       }
 

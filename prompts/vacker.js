@@ -12,7 +12,10 @@ const MENSAJES = {
     `Hola! Te escribo de Vacker, quería retomarte por si te quedó alguna duda sobre la propiedad. Estoy disponible para lo que necesites. 😊`,
 
   followup48:
-    `Hola, último mensaje de nuestra parte. Si en algún momento retomás la búsqueda, no dudes en escribirnos. ¡Éxitos! 🙌`,
+    `Hola! Solo quería saber si pudiste ver la propiedad o si te surgió alguna pregunta. Cualquier cosa me avisás. 🙌`,
+
+  followup72:
+    `Hola, último mensaje de nuestra parte. Si en algún momento retomás la búsqueda, no dudes en escribirnos. ¡Éxitos!`,
 };
 
 // ─── TRIGGER STRINGS ─────────────────────────────────────────────────────────

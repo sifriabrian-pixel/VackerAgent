@@ -67,6 +67,7 @@ function getLead(jid) {
       ultimoMensaje: Date.now(),
       followup24Enviado: false,
       followup48Enviado: false,
+      followup72Enviado: false,
       conversacionCerrada: false,
       // Fecha futura
       disponibleEn: null,
