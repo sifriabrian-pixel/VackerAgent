@@ -87,8 +87,9 @@ async function procesarMensaje(jid, texto) {
     const { text: respuesta, triggers, leadData } = await getReply(getLead(jid).history);
     addMessage(jid, 'assistant', respuesta);
 
-    if (!triggers.handoff && respuesta.trim()) {
-      await sendMessage(jid, respuesta);
+    const textoFinal = respuesta.replace(/\n{2,}/g, '\n').trim();
+    if (textoFinal) {
+      await sendMessage(jid, textoFinal);
     }
 
     if (Object.keys(leadData).length > 0) {
