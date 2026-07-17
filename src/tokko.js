@@ -140,6 +140,17 @@ function formatearFicha(prop) {
 
   const tags = (prop.tags || []).map(t => t.name || t).filter(Boolean);
   const tagsTxt = tags.length ? `\nCaracterísticas: ${tags.join(', ')}` : '';
+
+  // Atributos detallados (acá vive "Apto crédito", expensas, antigüedad, etc.)
+  const attrs = (prop.attributes || prop.attribute_values || [])
+    .map(a => {
+      const nombre = a.attribute?.name || a.key || a.name || '';
+      const valor  = a.value ?? a.attribute_value ?? '';
+      return nombre && valor ? `${nombre}: ${valor}` : null;
+    })
+    .filter(Boolean);
+  const attrsTxt = attrs.length ? `\nAtributos: ${attrs.join(' | ')}` : '';
+
   const desc = prop.description ? `\nDescripción: ${prop.description.replace(/<[^>]*>/g, '').slice(0, 400)}` : '';
   const url = `\nVer en web: ${generarUrlVacker(prop)}`;
   return `${prop.publication_title || prop.address}
@@ -150,7 +161,7 @@ Precio: ${precio}
 Ambientes: ${prop.room_amount || '—'}
 Habitaciones: ${prop.bedroom_amount || '—'}
 Baños: ${prop.bathroom_amount || '—'}
-Superficie total: ${prop.total_surface ? prop.total_surface + 'm²' : '—'}${tagsTxt}${desc}${url}`;
+Superficie total: ${prop.total_surface ? prop.total_surface + 'm²' : '—'}${tagsTxt}${attrsTxt}${desc}${url}`;
 }
 
 // ─── CREAR CONSULTA EN TOKKO (solo para leads de Meta) ───────────────────────
