@@ -36,19 +36,19 @@ function iniciarScheduler(sendMessage) {
       const horasDesdeUltimo   = minutosDesdeUltimo / 60;
 
       // ── FOLLOW-UPS ──────────────────────────────────────────────────
-      if (!lead.handoffHecho && !lead.followup24Enviado && horasDesdeUltimo >= 24) {
+      if (!lead.followup24Enviado && horasDesdeUltimo >= 24) {
         await sendMessage(lead.jid, MENSAJES.followup24);
         updateLead(lead.jid, { followup24Enviado: true });
         continue;
       }
 
-      if (!lead.handoffHecho && lead.followup24Enviado && !lead.followup48Enviado && horasDesdeUltimo >= 48) {
+      if (lead.followup24Enviado && !lead.followup48Enviado && horasDesdeUltimo >= 48) {
         await sendMessage(lead.jid, MENSAJES.followup48);
         updateLead(lead.jid, { followup48Enviado: true });
         continue;
       }
 
-      if (!lead.handoffHecho && lead.followup48Enviado && !lead.followup72Enviado && horasDesdeUltimo >= 72) {
+      if (lead.followup48Enviado && !lead.followup72Enviado && horasDesdeUltimo >= 72) {
         await sendMessage(lead.jid, MENSAJES.followup72);
         updateLead(lead.jid, { followup72Enviado: true, conversacionCerrada: true });
         continue;
