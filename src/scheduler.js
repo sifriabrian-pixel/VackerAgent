@@ -58,8 +58,8 @@ function iniciarScheduler(sendMessage) {
       // ── REMINDER PRE-VISITA ─────────────────────────────────────────
       if (lead.visitaFecha && !lead.reminderEnviado) {
         const horasHastaVisita = (lead.visitaFecha - ahora) / 1000 / 60 / 60;
-        // Manda el reminder cuando faltan entre 20 y 24 horas
-        if (horasHastaVisita <= 24 && horasHastaVisita > 0) {
+        // Manda el reminder cuando faltan 3 horas o menos
+        if (horasHastaVisita <= 3 && horasHastaVisita > 0) {
           const fechaFormateada = lead.visitaFecha.toLocaleDateString('es-AR', {
             weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
           });
