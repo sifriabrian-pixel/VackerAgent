@@ -9,13 +9,13 @@ const MENSAJES = {
     `Hola! Como te fue con la visita? Que te parecio la propiedad? Si tenes alguna consulta o queres ver otras opciones, avisame.`,
 
   followup24:
-    `Hola! Te escribo de Vacker, queria retomarte por si te quedo alguna duda sobre la propiedad. Estoy disponible para lo que necesites.`,
+    `Hola como estas? Te consulto si pudiste ver la informacion que te pase y si te surgio alguna duda o te interesaria coordinar una visita`,
 
   followup48:
-    `Hola! Solo queria saber si pudiste ver la propiedad o si te surgio alguna pregunta. Cualquier cosa me avisas.`,
+    `Hola, como estas? Te escribo para saber si pudiste ver la info que te mande. Cuando tengas un minuto, decime si queres que busquemos mas opciones o coordinamos alguna visita. Estoy a disposicion. Saludos!`,
 
   followup72:
-    `Hola, ultimo mensaje de nuestra parte. Si en algun momento retomas la busqueda, no dudes en escribirnos. Exitos!`,
+    `Hola, todo bien? Te consulto para ver como seguimos. Si queres, puedo armarte una busqueda mas afinada con precio, zona y tipo de propiedad. Decime que necesitas y lo ajusto. Saludos.`,
 };
 
 // ─── TRIGGER STRINGS ─────────────────────────────────────────────────────────
