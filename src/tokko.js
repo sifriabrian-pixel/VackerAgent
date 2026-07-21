@@ -113,6 +113,37 @@ function extraerIdDesdeLink(url) {
   return null;
 }
 
+async function buscarPorDireccion(texto) {
+  const numeros = texto.match(/\b(\d{3,5})\b/g);
+  if (!numeros) return null;
+
+  const inventario = await obtenerInventario();
+  const palabras = texto.toLowerCase().split(/\s+/).filter(p => p.length > 3);
+
+  for (const numero of numeros) {
+    const matches = inventario.filter(p => {
+      const dir = (p.address || '').toLowerCase();
+      return dir.includes(numero);
+    });
+    if (matches.length === 1) {
+      console.log(`[Tokko] Propiedad encontrada por dirección: ${matches[0].id}`);
+      return matches[0];
+    }
+    if (matches.length > 1) {
+      // Intentar afinar con nombre de calle del texto
+      const mejor = matches.find(p => {
+        const dir = (p.address || '').toLowerCase();
+        return palabras.some(pal => dir.includes(pal));
+      });
+      if (mejor) {
+        console.log(`[Tokko] Propiedad encontrada por dirección+calle: ${mejor.id}`);
+        return mejor;
+      }
+    }
+  }
+  return null;
+}
+
 async function buscarPropiedad(texto) {
   const urlMatch = texto.match(/https?:\/\/[^\s]+/);
   if (urlMatch) {
@@ -122,7 +153,8 @@ async function buscarPropiedad(texto) {
       return await buscarPorId(id);
     }
   }
-  return null;
+  // Fallback: buscar por número de dirección en el inventario cacheado
+  return await buscarPorDireccion(texto);
 }
 
 // ─── FORMATEAR FICHA (para mostrar al lead) ───────────────────────────────────
