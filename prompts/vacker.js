@@ -3,7 +3,7 @@
 // ─── MENSAJES FIJOS ───────────────────────────────────────────────────────────
 const MENSAJES = {
   reminder: (fecha) =>
-    `Hola! Te escribo de parte de Ezequiel Olivera de Vacker Negocios Inmobiliarios para recordarte que tenés una visita agendada${fecha ? ` para el ${fecha}` : ''}. Confirmamos?`,
+    `Hola! Te escribo para recordarte que tenés una visita agendada${fecha ? ` para el ${fecha}` : ''}. Confirmamos?`,
 
   postVisita:
     `Hola! Como te fue con la visita? Que te parecio la propiedad? Si tenes alguna consulta o queres ver otras opciones, avisame.`,
