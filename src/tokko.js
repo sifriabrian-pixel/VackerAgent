@@ -203,6 +203,19 @@ async function buscarPorTexto(texto) {
   return { prop: null, candidatos: tops.map(x => x.prop) };
 }
 
+const PAUTADAS = require('../config/pautadas');
+
+function buscarEnPautadas(texto) {
+  const t = normalizar(texto);
+  for (const p of PAUTADAS) {
+    const matched = p.matchAny
+      ? p.keywords.some(k => t.includes(normalizar(k)))
+      : p.keywords.every(k => t.includes(normalizar(k)));
+    if (matched) return p;
+  }
+  return null;
+}
+
 async function buscarPropiedad(texto) {
   // 1. Link directo (vacker o portal con ID)
   const urlMatch = texto.match(/https?:\/\/[^\s]+/);
@@ -211,10 +224,25 @@ async function buscarPropiedad(texto) {
     if (id) {
       console.log(`[Tokko] Buscando por ID: ${id}`);
       const prop = await buscarPorId(id);
-      return { prop, candidatos: [] };
+      return { prop, candidatos: [], fichaExterna: null };
     }
   }
-  // 2. Búsqueda por texto en el inventario cacheado (flujo principal Meta/portales)
+
+  // 2. Propiedad pautada en Meta Ads → match directo sin preguntar
+  const pautada = buscarEnPautadas(texto);
+  if (pautada) {
+    if (pautada.tokkoId) {
+      console.log(`[Tokko] Pautada encontrada — buscando ID: ${pautada.tokkoId}`);
+      const prop = await buscarPorId(pautada.tokkoId);
+      return { prop, candidatos: [], fichaExterna: null };
+    }
+    if (pautada.link) {
+      console.log(`[Tokko] Pautada externa: ${pautada.nombre}`);
+      return { prop: null, candidatos: [], fichaExterna: { link: pautada.link, nombre: pautada.nombre } };
+    }
+  }
+
+  // 3. Búsqueda por texto en el inventario cacheado
   return await buscarPorTexto(texto);
 }
 

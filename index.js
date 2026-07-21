@@ -65,10 +65,11 @@ async function procesarMensaje(jid, texto) {
   // Buscar propiedad en Tokko si hay link de vacker o mención directa
   let fichaTokko = null;
   let candidatosTokko = [];
+  let fichaExterna = null;
   const vackerIdNuevo = texto.match(/vacker\.com\.ar\/p\/(\d+)/)?.[1];
   const esNuevaPropiedad = vackerIdNuevo && String(lead.propiedadTokkoId) !== vackerIdNuevo;
   if ((!lead.propiedadTokkoId || esNuevaPropiedad) && !portalExterno) {
-    const { prop, candidatos } = await buscarPropiedad(texto);
+    const { prop, candidatos, fichaExterna: fe } = await buscarPropiedad(texto);
     if (prop) {
       fichaTokko = formatearFicha(prop);
       updateLead(jid, { propiedadTokkoId: prop.id });
@@ -76,6 +77,8 @@ async function procesarMensaje(jid, texto) {
     } else if (candidatos.length > 0) {
       candidatosTokko = candidatos;
       console.log(`[Tokko] Candidatos ambiguos: ${candidatos.map(c => c.id).join(', ')}`);
+    } else if (fe) {
+      fichaExterna = fe;
     }
   }
 
@@ -90,6 +93,8 @@ async function procesarMensaje(jid, texto) {
       return `${i + 1}. ${p.address} | ${p.publication_title || '—'} | ${precio}\n   ${url}`;
     }).join('\n');
     mensajeParaClaude += `\n\n[CANDIDATOS EN TOKKO — no estoy seguro cuál es]\nEncontré varias propiedades que podrían coincidir:\n${lista}\nHacé 1 o 2 preguntas cortas para identificar cuál le interesa (tipo de propiedad, cantidad de ambientes, precio aproximado que recuerda).`;
+  } else if (fichaExterna) {
+    mensajeParaClaude += `\n\n[FICHA EXTERNA — propiedad pautada fuera de Tokko]\nNombre: ${fichaExterna.nombre}\nLink: ${fichaExterna.link}\nCompartí este link al lead y preguntá si le surgió alguna duda o si la busca para vivir o inversión.`;
   } else if (portalExterno) {
     mensajeParaClaude += `\n\n[CONTEXTO: El lead llegó desde ${portalExterno}. No tenés acceso a ese portal. Pedile la dirección o nombre de la propiedad que le interesa para buscarla en tu inventario.]`;
   }
