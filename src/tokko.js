@@ -166,9 +166,18 @@ async function buscarPorTexto(texto) {
   })
   .filter(x => x.score > 0)
   .sort((a, b) => {
-    // Propiedades con nombre de calle siempre ganan a las de solo número
+    // 1. Calle match primero
     if (a.calleMatch !== b.calleMatch) return b.calleMatch ? 1 : -1;
-    return b.score - a.score;
+    // 2. Score mayor
+    if (a.score !== b.score) return b.score - a.score;
+    // 3. Desempate: número más cercano al mencionado en el texto
+    if (numeros.length) {
+      const queryNum = parseInt(numeros[0]);
+      const numA = parseInt((a.prop.address || '').match(/\b\d{3,5}\b/)?.[0] || '0');
+      const numB = parseInt((b.prop.address || '').match(/\b\d{3,5}\b/)?.[0] || '0');
+      return Math.abs(queryNum - numA) - Math.abs(queryNum - numB);
+    }
+    return 0;
   });
 
   if (scored.length > 0 && scored[0].score >= 2) {
