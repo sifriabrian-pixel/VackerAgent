@@ -113,38 +113,51 @@ function extraerIdDesdeLink(url) {
   return null;
 }
 
-async function buscarPorDireccion(texto) {
-  const numeros = texto.match(/\b(\d{3,5})\b/g);
-  if (!numeros) return null;
+function normalizar(str) {
+  return (str || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
 
+async function buscarPorTexto(texto) {
   const inventario = await obtenerInventario();
-  const palabras = texto.toLowerCase().split(/\s+/).filter(p => p.length > 3);
+  if (!inventario.length) return null;
 
-  for (const numero of numeros) {
-    const matches = inventario.filter(p => {
-      const dir = (p.address || '').toLowerCase();
-      return dir.includes(numero);
-    });
-    if (matches.length === 1) {
-      console.log(`[Tokko] Propiedad encontrada por dirección: ${matches[0].id}`);
-      return matches[0];
+  const t = normalizar(texto);
+  const numeros  = t.match(/\b\d{3,5}\b/g) || [];
+  const palabras = t.split(/\s+/).filter(p => p.length > 3);
+
+  const scored = inventario.map(prop => {
+    const dir    = normalizar(prop.address);
+    const titulo = normalizar(prop.publication_title);
+    const zona   = normalizar(prop.location?.name);
+    const todo   = `${dir} ${titulo} ${zona}`;
+    let score = 0;
+
+    // Número de calle en dirección → señal fuerte
+    for (const num of numeros) {
+      if (dir.includes(num)) score += 4;
     }
-    if (matches.length > 1) {
-      // Intentar afinar con nombre de calle del texto
-      const mejor = matches.find(p => {
-        const dir = (p.address || '').toLowerCase();
-        return palabras.some(pal => dir.includes(pal));
-      });
-      if (mejor) {
-        console.log(`[Tokko] Propiedad encontrada por dirección+calle: ${mejor.id}`);
-        return mejor;
-      }
+    // Palabras clave en dirección, título o zona
+    for (const pal of palabras) {
+      if (dir.includes(pal))    score += 2;
+      else if (titulo.includes(pal)) score += 1;
+      else if (zona.includes(pal))   score += 1;
     }
+
+    return { prop, score };
+  })
+  .filter(x => x.score > 0)
+  .sort((a, b) => b.score - a.score);
+
+  if (scored.length > 0 && scored[0].score >= 2) {
+    const top = scored[0];
+    console.log(`[Tokko] Propiedad encontrada por texto (score ${top.score}): ${top.prop.id} — ${top.prop.address}`);
+    return top.prop;
   }
   return null;
 }
 
 async function buscarPropiedad(texto) {
+  // 1. Link directo (vacker o portal con ID)
   const urlMatch = texto.match(/https?:\/\/[^\s]+/);
   if (urlMatch) {
     const id = extraerIdDesdeLink(urlMatch[0]);
@@ -153,8 +166,8 @@ async function buscarPropiedad(texto) {
       return await buscarPorId(id);
     }
   }
-  // Fallback: buscar por número de dirección en el inventario cacheado
-  return await buscarPorDireccion(texto);
+  // 2. Búsqueda por texto en el inventario cacheado (flujo principal Meta/portales)
+  return await buscarPorTexto(texto);
 }
 
 // ─── FORMATEAR FICHA (para mostrar al lead) ───────────────────────────────────
