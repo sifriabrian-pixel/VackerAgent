@@ -261,6 +261,32 @@ async function buscarPropiedad(texto) {
 
 // ─── FORMATEAR FICHA (para mostrar al lead) ───────────────────────────────────
 
+function detectarAptoCredito(prop) {
+  // 1. Campo booleano directo (variantes comunes en Tokko)
+  for (const campo of ['ap_credito', 'apto_credito', 'apt_credit', 'is_apt_credit', 'credito']) {
+    if (prop[campo] === true)  return 'Si';
+    if (prop[campo] === false) return 'No';
+    if (prop[campo] === 1)     return 'Si';
+    if (prop[campo] === 0)     return 'No';
+  }
+  // 2. En el título de la publicación
+  const titulo = (prop.publication_title || '').toLowerCase();
+  if (titulo.includes('apto') && (titulo.includes('credito') || titulo.includes('crédito'))) return 'Si';
+  // 3. En tags
+  const tags = (prop.tags || []).map(t => (t.name || t || '').toLowerCase());
+  if (tags.some(t => t.includes('credito') || t.includes('crédito'))) return 'Si';
+  // 4. En atributos
+  const attrs = prop.attributes || prop.attribute_values || [];
+  for (const a of attrs) {
+    const nombre = (a.attribute?.name || a.key || a.name || '').toLowerCase();
+    const valor  = String(a.value ?? a.attribute_value ?? '').toLowerCase();
+    if (nombre.includes('credito') || nombre.includes('crédito')) {
+      return valor === 'si' || valor === 'sí' || valor === '1' || valor === 'true' ? 'Si' : 'No';
+    }
+  }
+  return null;
+}
+
 function formatearFicha(prop) {
   if (!prop) return null;
   const ops = prop.operations?.[0];
@@ -275,7 +301,7 @@ function formatearFicha(prop) {
   const tags = (prop.tags || []).map(t => t.name || t).filter(Boolean);
   const tagsTxt = tags.length ? `\nCaracterísticas: ${tags.join(', ')}` : '';
 
-  // Atributos detallados (acá vive "Apto crédito", expensas, antigüedad, etc.)
+  // Atributos detallados
   const attrs = (prop.attributes || prop.attribute_values || [])
     .map(a => {
       const nombre = a.attribute?.name || a.key || a.name || '';
@@ -284,6 +310,11 @@ function formatearFicha(prop) {
     })
     .filter(Boolean);
   const attrsTxt = attrs.length ? `\nAtributos: ${attrs.join(' | ')}` : '';
+
+  // Apto crédito — detección explícita en múltiples campos
+  const aptoCredito = detectarAptoCredito(prop);
+  const aptoCreditoTxt = aptoCredito ? `\nApto crédito: ${aptoCredito}` : '\nApto crédito: no figura en ficha';
+  console.log(`[Tokko] Apto crédito ID ${prop.id}: ${aptoCredito || 'no detectado'}`);
 
   const desc = prop.description ? `\nDescripción: ${prop.description.replace(/<[^>]*>/g, '').slice(0, 400)}` : '';
   const url = `\nVer en web: ${generarUrlVacker(prop)}`;
@@ -295,7 +326,7 @@ Precio: ${precio}
 Ambientes: ${prop.room_amount || '—'}
 Habitaciones: ${prop.bedroom_amount || '—'}
 Baños: ${prop.bathroom_amount || '—'}
-Superficie total: ${prop.total_surface ? prop.total_surface + 'm²' : '—'}${tagsTxt}${attrsTxt}${desc}${url}`;
+Superficie total: ${prop.total_surface ? prop.total_surface + 'm²' : '—'}${aptoCreditoTxt}${tagsTxt}${attrsTxt}${desc}${url}`;
 }
 
 // ─── CREAR CONSULTA EN TOKKO (solo para leads de Meta) ───────────────────────
