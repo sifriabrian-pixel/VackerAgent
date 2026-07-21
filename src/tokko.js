@@ -180,12 +180,27 @@ async function buscarPorTexto(texto) {
     return 0;
   });
 
-  if (scored.length > 0 && scored[0].score >= 2) {
-    const top = scored[0];
-    console.log(`[Tokko] Texto match (score ${top.score}, calle=${top.calleMatch}): ${top.prop.id} — ${top.prop.address}`);
-    return top.prop;
+  const candidatosCalle = scored.filter(x => x.calleMatch);
+
+  if (candidatosCalle.length === 0) {
+    // Sin match de calle, usar número si hay un único resultado claro
+    if (scored.length === 1 && scored[0].score >= 2) {
+      console.log(`[Tokko] Match por número: ${scored[0].prop.id} — ${scored[0].prop.address}`);
+      return { prop: scored[0].prop, candidatos: [] };
+    }
+    return { prop: null, candidatos: [] };
   }
-  return null;
+
+  if (candidatosCalle.length === 1) {
+    // Único match de calle → certeza alta
+    console.log(`[Tokko] Match único por calle: ${candidatosCalle[0].prop.id} — ${candidatosCalle[0].prop.address}`);
+    return { prop: candidatosCalle[0].prop, candidatos: [] };
+  }
+
+  // Múltiples candidatos con la misma calle → devolver todos para que Claude pregunte
+  const tops = candidatosCalle.slice(0, 4);
+  console.log(`[Tokko] ${tops.length} candidatos en misma calle — Claude va a preguntar`);
+  return { prop: null, candidatos: tops.map(x => x.prop) };
 }
 
 async function buscarPropiedad(texto) {
@@ -195,7 +210,8 @@ async function buscarPropiedad(texto) {
     const id = extraerIdDesdeLink(urlMatch[0]);
     if (id) {
       console.log(`[Tokko] Buscando por ID: ${id}`);
-      return await buscarPorId(id);
+      const prop = await buscarPorId(id);
+      return { prop, candidatos: [] };
     }
   }
   // 2. Búsqueda por texto en el inventario cacheado (flujo principal Meta/portales)

@@ -64,20 +64,32 @@ async function procesarMensaje(jid, texto) {
 
   // Buscar propiedad en Tokko si hay link de vacker o mención directa
   let fichaTokko = null;
+  let candidatosTokko = [];
   const vackerIdNuevo = texto.match(/vacker\.com\.ar\/p\/(\d+)/)?.[1];
   const esNuevaPropiedad = vackerIdNuevo && String(lead.propiedadTokkoId) !== vackerIdNuevo;
   if ((!lead.propiedadTokkoId || esNuevaPropiedad) && !portalExterno) {
-    const prop = await buscarPropiedad(texto);
+    const { prop, candidatos } = await buscarPropiedad(texto);
     if (prop) {
       fichaTokko = formatearFicha(prop);
       updateLead(jid, { propiedadTokkoId: prop.id });
       console.log(`[Tokko] Propiedad encontrada: ${prop.id}`);
+    } else if (candidatos.length > 0) {
+      candidatosTokko = candidatos;
+      console.log(`[Tokko] Candidatos ambiguos: ${candidatos.map(c => c.id).join(', ')}`);
     }
   }
 
   let mensajeParaClaude = texto;
   if (fichaTokko) {
     mensajeParaClaude += `\n\n[FICHA DE LA PROPIEDAD ENCONTRADA EN TOKKO]\n${fichaTokko}`;
+  } else if (candidatosTokko.length > 0) {
+    const lista = candidatosTokko.map((p, i) => {
+      const ops = p.operations?.[0];
+      const precio = ops?.prices?.[0] ? `${ops.prices[0].currency} ${ops.prices[0].price?.toLocaleString('es-AR')}` : 'Consultar';
+      const url = `https://www.vacker.com.ar/p/${p.id}-${(p.publication_title || p.address || '').replace(/ - /g, '-').replace(/\s+/g, '-')}`;
+      return `${i + 1}. ${p.address} | ${p.publication_title || '—'} | ${precio}\n   ${url}`;
+    }).join('\n');
+    mensajeParaClaude += `\n\n[CANDIDATOS EN TOKKO — no estoy seguro cuál es]\nEncontré varias propiedades que podrían coincidir:\n${lista}\nHacé 1 o 2 preguntas cortas para identificar cuál le interesa (ambientes, precio aproximado, o pedile el link de la publicación que vio).`;
   } else if (portalExterno) {
     mensajeParaClaude += `\n\n[CONTEXTO: El lead llegó desde ${portalExterno}. No tenés acceso a ese portal. Pedile la dirección o nombre de la propiedad que le interesa para buscarla en tu inventario.]`;
   }
