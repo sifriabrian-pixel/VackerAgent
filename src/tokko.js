@@ -117,40 +117,55 @@ function normalizar(str) {
   return (str || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+const STOPWORDS = new Set([
+  'interesa', 'propiedad', 'depto', 'departamento', 'casa', 'local', 'venta',
+  'alquiler', 'busco', 'quiero', 'zona', 'barrio', 'calle', 'esta', 'tiene',
+  'para', 'con', 'del', 'los', 'las', 'una', 'como', 'hola', 'buen', 'gracias',
+  'quisiera', 'saber', 'sobre', 'puedo', 'puedes', 'podrias', 'informacion',
+]);
+
 async function buscarPorTexto(texto) {
   const inventario = await obtenerInventario();
   if (!inventario.length) return null;
 
   const t = normalizar(texto);
   const numeros  = t.match(/\b\d{3,5}\b/g) || [];
-  const palabras = t.split(/\s+/).filter(p => p.length > 3);
+  const palabras = t.split(/\s+/).filter(p => p.length > 3 && !STOPWORDS.has(p));
 
   const scored = inventario.map(prop => {
     const dir    = normalizar(prop.address);
     const titulo = normalizar(prop.publication_title);
     const zona   = normalizar(prop.location?.name);
-    const todo   = `${dir} ${titulo} ${zona}`;
     let score = 0;
+    let calleMatch = false;
 
-    // Número de calle en dirección → señal fuerte
-    for (const num of numeros) {
-      if (dir.includes(num)) score += 4;
-    }
-    // Palabras clave en dirección, título o zona
+    // Nombre de calle en dirección → señal más fuerte
     for (const pal of palabras) {
-      if (dir.includes(pal))    score += 2;
-      else if (titulo.includes(pal)) score += 1;
-      else if (zona.includes(pal))   score += 1;
+      if (dir.includes(pal)) {
+        score += 6;
+        calleMatch = true;
+      } else if (zona.includes(pal) || titulo.includes(pal)) {
+        score += 1;
+      }
     }
 
-    return { prop, score };
+    // Número en dirección → señal secundaria
+    for (const num of numeros) {
+      if (dir.includes(num)) score += 2;
+    }
+
+    return { prop, score, calleMatch };
   })
   .filter(x => x.score > 0)
-  .sort((a, b) => b.score - a.score);
+  .sort((a, b) => {
+    // Propiedades con nombre de calle siempre ganan a las de solo número
+    if (a.calleMatch !== b.calleMatch) return b.calleMatch ? 1 : -1;
+    return b.score - a.score;
+  });
 
   if (scored.length > 0 && scored[0].score >= 2) {
     const top = scored[0];
-    console.log(`[Tokko] Propiedad encontrada por texto (score ${top.score}): ${top.prop.id} — ${top.prop.address}`);
+    console.log(`[Tokko] Texto match (score ${top.score}, calle=${top.calleMatch}): ${top.prop.id} — ${top.prop.address}`);
     return top.prop;
   }
   return null;
