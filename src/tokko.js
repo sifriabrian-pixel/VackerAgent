@@ -139,11 +139,19 @@ async function buscarPorTexto(texto) {
     let score = 0;
     let calleMatch = false;
 
+    // Solo la parte antes del número es la calle principal
+    const numPos = dir.search(/\b\d{3,5}\b/);
+    const callePrincipal = numPos > 0 ? dir.slice(0, numPos) : dir;
+
     // Nombre de calle en dirección → señal más fuerte
     for (const pal of palabras) {
-      if (dir.includes(pal)) {
+      if (callePrincipal.includes(pal)) {
+        // Coincide con la calle principal (antes del número)
         score += 6;
         calleMatch = true;
+      } else if (dir.includes(pal)) {
+        // Aparece en la dirección pero no como calle principal (ej: transversal)
+        score += 1;
       } else if (zona.includes(pal) || titulo.includes(pal)) {
         score += 1;
       }
