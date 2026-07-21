@@ -89,7 +89,7 @@ async function procesarMensaje(jid, texto) {
       const url = `https://www.vacker.com.ar/p/${p.id}-${(p.publication_title || p.address || '').replace(/ - /g, '-').replace(/\s+/g, '-')}`;
       return `${i + 1}. ${p.address} | ${p.publication_title || '—'} | ${precio}\n   ${url}`;
     }).join('\n');
-    mensajeParaClaude += `\n\n[CANDIDATOS EN TOKKO — no estoy seguro cuál es]\nEncontré varias propiedades que podrían coincidir:\n${lista}\nHacé 1 o 2 preguntas cortas para identificar cuál le interesa (ambientes, precio aproximado, o pedile el link de la publicación que vio).`;
+    mensajeParaClaude += `\n\n[CANDIDATOS EN TOKKO — no estoy seguro cuál es]\nEncontré varias propiedades que podrían coincidir:\n${lista}\nHacé 1 o 2 preguntas cortas para identificar cuál le interesa (tipo de propiedad, cantidad de ambientes, precio aproximado que recuerda).`;
   } else if (portalExterno) {
     mensajeParaClaude += `\n\n[CONTEXTO: El lead llegó desde ${portalExterno}. No tenés acceso a ese portal. Pedile la dirección o nombre de la propiedad que le interesa para buscarla en tu inventario.]`;
   }
