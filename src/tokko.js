@@ -183,7 +183,6 @@ async function buscarPorTexto(texto) {
   const candidatosCalle = scored.filter(x => x.calleMatch);
 
   if (candidatosCalle.length === 0) {
-    // Sin match de calle, usar número si hay un único resultado claro
     if (scored.length === 1 && scored[0].score >= 2) {
       console.log(`[Tokko] Match por número: ${scored[0].prop.id} — ${scored[0].prop.address}`);
       return { prop: scored[0].prop, candidatos: [] };
@@ -192,28 +191,42 @@ async function buscarPorTexto(texto) {
   }
 
   if (candidatosCalle.length === 1) {
-    // Único match de calle → certeza alta
     console.log(`[Tokko] Match único por calle: ${candidatosCalle[0].prop.id} — ${candidatosCalle[0].prop.address}`);
     return { prop: candidatosCalle[0].prop, candidatos: [] };
   }
 
-  // Múltiples candidatos con la misma calle → devolver todos para que Claude pregunte
+  // Múltiples candidatos: si uno es pautada, usarlo directamente sin preguntar
+  const pautadaEnCandidatos = candidatosCalle.find(x => esPautada(x.prop.id));
+  if (pautadaEnCandidatos) {
+    console.log(`[Tokko] Candidato pautado encontrado directamente: ${pautadaEnCandidatos.prop.id} — ${pautadaEnCandidatos.prop.address}`);
+    return { prop: pautadaEnCandidatos.prop, candidatos: [] };
+  }
+
+  // Sin pautada entre los candidatos → Claude pregunta
   const tops = candidatosCalle.slice(0, 4);
-  console.log(`[Tokko] ${tops.length} candidatos en misma calle — Claude va a preguntar`);
+  console.log(`[Tokko] ${tops.length} candidatos ambiguos — Claude va a preguntar`);
   return { prop: null, candidatos: tops.map(x => x.prop) };
 }
 
 const PAUTADAS = require('../config/pautadas');
 
+const PAUTADAS_IDS = new Set(PAUTADAS.filter(p => p.tokkoId).map(p => String(p.tokkoId)));
+
 function buscarEnPautadas(texto) {
   const t = normalizar(texto);
   for (const p of PAUTADAS) {
+    // Unir keywords + address para el matching
+    const allTerms = [...p.keywords, ...(p.address || [])];
     const matched = p.matchAny
-      ? p.keywords.some(k => t.includes(normalizar(k)))
+      ? allTerms.some(k => t.includes(normalizar(k)))
       : p.keywords.every(k => t.includes(normalizar(k)));
     if (matched) return p;
   }
   return null;
+}
+
+function esPautada(propId) {
+  return PAUTADAS_IDS.has(String(propId));
 }
 
 async function buscarPropiedad(texto) {
