@@ -12,8 +12,9 @@ function enHorarioPermitido() {
   const ahora = new Date();
   const hora = ahora.getHours();
   const dia  = ahora.getDay(); // 0=domingo, 6=sábado
-  const esLaborable = dia >= 1 && dia <= 5;
-  return esLaborable && hora >= HORA_INICIO && hora < HORA_FIN;
+  if (dia === 0) return false;                                  // domingo: nunca
+  if (dia === 6) return hora >= 11 && hora < HORA_FIN;         // sábado: 11-18
+  return hora >= HORA_INICIO && hora < HORA_FIN;               // lun-vie: 9-18
 }
 
 function iniciarScheduler(sendMessage) {
