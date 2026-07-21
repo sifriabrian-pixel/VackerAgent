@@ -64,7 +64,9 @@ async function procesarMensaje(jid, texto) {
 
   // Buscar propiedad en Tokko si hay link de vacker o mención directa
   let fichaTokko = null;
-  if (!lead.propiedadTokkoId && !portalExterno) {
+  const vackerIdNuevo = texto.match(/vacker\.com\.ar\/p\/(\d+)/)?.[1];
+  const esNuevaPropiedad = vackerIdNuevo && String(lead.propiedadTokkoId) !== vackerIdNuevo;
+  if ((!lead.propiedadTokkoId || esNuevaPropiedad) && !portalExterno) {
     const prop = await buscarPropiedad(texto);
     if (prop) {
       fichaTokko = formatearFicha(prop);
