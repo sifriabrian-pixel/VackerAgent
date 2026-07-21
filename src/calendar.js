@@ -24,7 +24,10 @@ function extraerTelefono(texto) {
 
 async function sincronizarVisitas(getLead, updateLead) {
   const calendarId = process.env.GOOGLE_CALENDAR_ID;
-  if (!calendarId || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) return;
+  if (!calendarId || !process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    console.log('[Calendar] Variables no configuradas — saltando sync');
+    return;
+  }
 
   const auth = getAuth();
   if (!auth) return;
@@ -43,10 +46,12 @@ async function sincronizarVisitas(getLead, updateLead) {
     });
 
     const eventos = res.data.items || [];
+    console.log(`[Calendar] Sync OK — ${eventos.length} eventos en los próximos 14 días`);
 
     for (const evento of eventos) {
       const textoCompleto = `${evento.summary || ''} ${evento.description || ''}`;
       const telefono = extraerTelefono(textoCompleto);
+      console.log(`[Calendar] Evento: "${evento.summary}" — teléfono extraído: ${telefono || 'ninguno'}`);
       if (!telefono) continue;
 
       // Intentar con y sin código de país
