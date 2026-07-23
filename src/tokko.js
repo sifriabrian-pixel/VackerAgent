@@ -275,13 +275,18 @@ function detectarAptoCredito(prop) {
   // 3. En tags
   const tags = (prop.tags || []).map(t => (t.name || t || '').toLowerCase());
   if (tags.some(t => t.includes('credito') || t.includes('crédito'))) return 'Si';
-  // 4. En atributos
+  // 4. En atributos (el campo puede llamarse "Crédito" con valor "Apto crédito")
   const attrs = prop.attributes || prop.attribute_values || [];
   for (const a of attrs) {
     const nombre = (a.attribute?.name || a.key || a.name || '').toLowerCase();
     const valor  = String(a.value ?? a.attribute_value ?? '').toLowerCase();
     if (nombre.includes('credito') || nombre.includes('crédito')) {
-      return valor === 'si' || valor === 'sí' || valor === '1' || valor === 'true' ? 'Si' : 'No';
+      // "Apto crédito" como valor = Si. "No" / "No apto" = No
+      if (valor === 'si' || valor === 'sí' || valor === '1' || valor === 'true') return 'Si';
+      if (valor.includes('apto') && !valor.includes('no apto')) return 'Si';
+      if (valor === 'no' || valor === '0' || valor === 'false' || valor.includes('no apto')) return 'No';
+      // Devolver el valor tal cual si no podemos parsear (ej: "Apto crédito")
+      return valor.charAt(0).toUpperCase() + valor.slice(1);
     }
   }
   return null;
