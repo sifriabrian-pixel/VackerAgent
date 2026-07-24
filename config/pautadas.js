@@ -52,8 +52,6 @@ module.exports = [
   },
   {
     keywords: ['cerrito'],
-    nombre: 'Cerrito',
-    address: ['cerrito'],
-    link: 'https://ficha.info/p/50e48c293daa435ebc548dffc33bc125?v=1768491926646',
+    tokkoId: '7512323',
   },
 ];
