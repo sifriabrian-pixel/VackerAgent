@@ -276,31 +276,28 @@ async function buscarPropiedad(texto) {
 // ─── FORMATEAR FICHA (para mostrar al lead) ───────────────────────────────────
 
 function detectarAptoCredito(prop) {
-  // 1. Campo booleano directo (variantes comunes en Tokko)
-  for (const campo of ['ap_credito', 'apto_credito', 'apt_credit', 'is_apt_credit', 'credito']) {
-    if (prop[campo] === true)  return 'Si';
-    if (prop[campo] === false) return 'No';
-    if (prop[campo] === 1)     return 'Si';
-    if (prop[campo] === 0)     return 'No';
+  // Campo confirmado en Tokko API: credit_eligible (booleano top-level)
+  if (prop.credit_eligible === true  || prop.credit_eligible === 1)  return 'Si';
+  if (prop.credit_eligible === false || prop.credit_eligible === 0)  return 'No';
+  // Variantes alternativas
+  for (const campo of ['ap_credito', 'apto_credito', 'apt_credit', 'is_apt_credit']) {
+    if (prop[campo] === true  || prop[campo] === 1) return 'Si';
+    if (prop[campo] === false || prop[campo] === 0) return 'No';
   }
-  // 2. En el título de la publicación
+  // En el título
   const titulo = (prop.publication_title || '').toLowerCase();
   if (titulo.includes('apto') && (titulo.includes('credito') || titulo.includes('crédito'))) return 'Si';
-  // 3. En tags
+  // En tags
   const tags = (prop.tags || []).map(t => (t.name || t || '').toLowerCase());
   if (tags.some(t => t.includes('credito') || t.includes('crédito'))) return 'Si';
-  // 4. En atributos (el campo puede llamarse "Crédito" con valor "Apto crédito")
-  const attrs = prop.attributes || prop.attribute_values || [];
-  for (const a of attrs) {
+  // En atributos
+  for (const a of [...(prop.attributes || []), ...(prop.attribute_values || [])]) {
     const nombre = (a.attribute?.name || a.key || a.name || '').toLowerCase();
     const valor  = String(a.value ?? a.attribute_value ?? '').toLowerCase();
     if (nombre.includes('credito') || nombre.includes('crédito')) {
-      // "Apto crédito" como valor = Si. "No" / "No apto" = No
       if (valor === 'si' || valor === 'sí' || valor === '1' || valor === 'true') return 'Si';
       if (valor.includes('apto') && !valor.includes('no apto')) return 'Si';
-      if (valor === 'no' || valor === '0' || valor === 'false' || valor.includes('no apto')) return 'No';
-      // Devolver el valor tal cual si no podemos parsear (ej: "Apto crédito")
-      return valor.charAt(0).toUpperCase() + valor.slice(1);
+      return valor === 'no' || valor === '0' ? 'No' : valor.charAt(0).toUpperCase() + valor.slice(1);
     }
   }
   return null;
@@ -335,6 +332,14 @@ function formatearFicha(prop) {
   const aptoCreditoTxt = aptoCredito ? `\nApto crédito: ${aptoCredito}` : '\nApto crédito: no figura en ficha';
   console.log(`[Tokko] Apto crédito ID ${prop.id}: ${aptoCredito || 'no detectado'}`);
 
+  // Campos top-level confirmados en Tokko API
+  const expensas    = prop.expenses      ? `\nExpensas: $${Number(prop.expenses).toLocaleString('es-AR')}` : '';
+  const antiguedad  = prop.age           ? `\nAntigüedad: ${prop.age} años` : '';
+  const orientacion = prop.orientation   ? `\nOrientación: ${prop.orientation}` : '';
+  const disposicion = prop.disposition   ? `\nDisposición: ${prop.disposition}` : '';
+  const situacion   = prop.situation     ? `\nSituación: ${prop.situation}` : '';
+  const cocheras    = prop.parking_lot_amount != null ? `\nCocheras: ${prop.parking_lot_amount}` : '';
+
   const desc = prop.description ? `\nDescripción: ${prop.description.replace(/<[^>]*>/g, '').slice(0, 400)}` : '';
   const url = `\nVer en web: ${generarUrlVacker(prop)}`;
   return `${prop.publication_title || prop.address}
@@ -345,7 +350,7 @@ Precio: ${precio}
 Ambientes: ${prop.room_amount || '—'}
 Habitaciones: ${prop.bedroom_amount || '—'}
 Baños: ${prop.bathroom_amount || '—'}
-Superficie total: ${prop.total_surface ? prop.total_surface + 'm²' : '—'}${aptoCreditoTxt}${tagsTxt}${attrsTxt}${desc}${url}`;
+Superficie total: ${prop.total_surface ? prop.total_surface + 'm²' : '—'}${aptoCreditoTxt}${expensas}${antiguedad}${orientacion}${disposicion}${situacion}${cocheras}${tagsTxt}${attrsTxt}${desc}${url}`;
 }
 
 // ─── CREAR CONSULTA EN TOKKO (solo para leads de Meta) ───────────────────────
