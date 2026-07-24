@@ -276,9 +276,12 @@ async function buscarPropiedad(texto) {
 // ─── FORMATEAR FICHA (para mostrar al lead) ───────────────────────────────────
 
 function detectarAptoCredito(prop) {
-  // Campo confirmado en Tokko API: credit_eligible (booleano top-level)
-  if (prop.credit_eligible === true  || prop.credit_eligible === 1)  return 'Si';
-  if (prop.credit_eligible === false || prop.credit_eligible === 0)  return 'No';
+  // Campo confirmado en Tokko API: credit_eligible
+  console.log(`[TokkoDebug] credit_eligible raw: ${JSON.stringify(prop.credit_eligible)}`);
+  const ce = prop.credit_eligible;
+  if (ce === true  || ce === 1  || ce === '1'  || ce === 'true'  || ce === 'Si' || ce === 'si') return 'Si';
+  if (ce === false || ce === 0  || ce === '0'  || ce === 'false' || ce === 'No' || ce === 'no') return 'No';
+  if (ce != null) return String(ce); // cualquier otro valor no nulo lo pasamos tal cual
   // Variantes alternativas
   for (const campo of ['ap_credito', 'apto_credito', 'apt_credit', 'is_apt_credit']) {
     if (prop[campo] === true  || prop[campo] === 1) return 'Si';
