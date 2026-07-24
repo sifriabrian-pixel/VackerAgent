@@ -96,7 +96,15 @@ async function buscarPorId(tokkoId) {
     const res = await axios.get(`${BASE_URL}/property/${tokkoId}/`, {
       params: { format: 'json', key: API_KEY, lang: 'es_ar' },
     });
-    return res.data || null;
+    const prop = res.data || null;
+    if (prop) {
+      console.log(`[TokkoDebug] ID ${tokkoId} keys:`, Object.keys(prop).join(', '));
+      console.log(`[TokkoDebug] attributes:`, JSON.stringify(prop.attributes || []).slice(0, 300));
+      console.log(`[TokkoDebug] attribute_values:`, JSON.stringify(prop.attribute_values || []).slice(0, 300));
+      console.log(`[TokkoDebug] tags:`, JSON.stringify(prop.tags || []).slice(0, 200));
+      console.log(`[TokkoDebug] extras:`, JSON.stringify(prop.extras || prop.extra || prop.custom_tags || null).slice(0, 200));
+    }
+    return prop;
   } catch (err) {
     console.error('[Tokko] Error buscando por ID:', err?.response?.data || err.message);
     return null;
@@ -306,8 +314,8 @@ function formatearFicha(prop) {
   const tags = (prop.tags || []).map(t => t.name || t).filter(Boolean);
   const tagsTxt = tags.length ? `\nCaracterísticas: ${tags.join(', ')}` : '';
 
-  // Atributos detallados
-  const attrs = (prop.attributes || prop.attribute_values || [])
+  // Atributos detallados — combinar ambos arrays (uno puede estar vacío)
+  const attrs = [...(prop.attributes || []), ...(prop.attribute_values || [])]
     .map(a => {
       const nombre = a.attribute?.name || a.key || a.name || '';
       const valor  = a.value ?? a.attribute_value ?? '';
