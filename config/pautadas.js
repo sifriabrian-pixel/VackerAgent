@@ -48,7 +48,7 @@ module.exports = [
     keywords: ['san luis'],
     nombre: 'San Luis al 900',
     address: ['san luis', '900'],
-    link: 'https://ficha.info/p/6bc8363ffa1044c3aa4f4ccd09e87a09?v=1768492091306',
+    tokkoId: '7554555',
   },
   {
     keywords: ['cerrito'],

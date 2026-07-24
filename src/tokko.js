@@ -228,14 +228,16 @@ const PAUTADAS_IDS = new Set(PAUTADAS.filter(p => p.tokkoId).map(p => String(p.t
 
 function buscarEnPautadas(texto) {
   const t = normalizar(texto);
+  console.log(`[Pautadas] Buscando en: "${t.slice(0, 80)}"`);
   for (const p of PAUTADAS) {
-    // Unir keywords + address para el matching
     const allTerms = [...p.keywords, ...(p.address || [])];
     const matched = p.matchAny
       ? allTerms.some(k => t.includes(normalizar(k)))
       : p.keywords.every(k => t.includes(normalizar(k)));
+    console.log(`[Pautadas]  keywords=${JSON.stringify(p.keywords)} → ${matched}`);
     if (matched) return p;
   }
+  console.log(`[Pautadas] Sin match`);
   return null;
 }
 
