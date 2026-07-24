@@ -218,8 +218,17 @@ async function buscarPorTexto(texto) {
   }
 
   if (candidatosCalle.length === 1) {
-    console.log(`[Tokko] Match único por calle: ${candidatosCalle[0].prop.id} — ${candidatosCalle[0].prop.address}`);
-    return { prop: await fetchDetalle(candidatosCalle[0].prop), candidatos: [] };
+    const c = candidatosCalle[0];
+    if (numeros.length) {
+      const queryNum = parseInt(numeros[0]);
+      const propNum  = parseInt((c.prop.address || '').match(/\b\d{3,5}\b/)?.[0] || '0');
+      if (propNum && Math.abs(queryNum - propNum) > 300) {
+        console.log(`[Tokko] Número lejano (pedido: ${queryNum}, encontrado: ${propNum}) — pidiendo confirmación`);
+        return { prop: null, candidatos: [c.prop] };
+      }
+    }
+    console.log(`[Tokko] Match único por calle: ${c.prop.id} — ${c.prop.address}`);
+    return { prop: await fetchDetalle(c.prop), candidatos: [] };
   }
 
   // Múltiples candidatos: si uno es pautada, usarlo directamente sin preguntar
