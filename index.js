@@ -72,14 +72,20 @@ async function procesarMensaje(jid, texto) {
     const { prop, candidatos, fichaExterna: fe } = await buscarPropiedad(texto);
     if (prop) {
       fichaTokko = formatearFicha(prop);
-      updateLead(jid, { propiedadTokkoId: prop.id });
+      updateLead(jid, { propiedadTokkoId: prop.id, fichaExterna: null });
       console.log(`[Tokko] Propiedad encontrada: ${prop.id}`);
     } else if (candidatos.length > 0) {
       candidatosTokko = candidatos;
       console.log(`[Tokko] Candidatos ambiguos: ${candidatos.map(c => c.id).join(', ')}`);
     } else if (fe) {
       fichaExterna = fe;
+      updateLead(jid, { fichaExterna: fe });
     }
+  }
+
+  // Si lead ya tiene fichaExterna guardada y no se encontró otra propiedad, re-inyectarla
+  if (!fichaTokko && !fichaExterna && candidatosTokko.length === 0 && lead.fichaExterna) {
+    fichaExterna = lead.fichaExterna;
   }
 
   let mensajeParaClaude = texto;
