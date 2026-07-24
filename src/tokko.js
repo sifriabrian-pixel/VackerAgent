@@ -190,24 +190,30 @@ async function buscarPorTexto(texto) {
 
   const candidatosCalle = scored.filter(x => x.calleMatch);
 
+  // Helper: fetch detalle completo (con atributos, expensas, etc.) por ID
+  async function fetchDetalle(propBasica) {
+    const detalle = await buscarPorId(propBasica.id);
+    return detalle || propBasica; // fallback a la versión básica si falla
+  }
+
   if (candidatosCalle.length === 0) {
     if (scored.length === 1 && scored[0].score >= 2) {
       console.log(`[Tokko] Match por número: ${scored[0].prop.id} — ${scored[0].prop.address}`);
-      return { prop: scored[0].prop, candidatos: [] };
+      return { prop: await fetchDetalle(scored[0].prop), candidatos: [] };
     }
     return { prop: null, candidatos: [] };
   }
 
   if (candidatosCalle.length === 1) {
     console.log(`[Tokko] Match único por calle: ${candidatosCalle[0].prop.id} — ${candidatosCalle[0].prop.address}`);
-    return { prop: candidatosCalle[0].prop, candidatos: [] };
+    return { prop: await fetchDetalle(candidatosCalle[0].prop), candidatos: [] };
   }
 
   // Múltiples candidatos: si uno es pautada, usarlo directamente sin preguntar
   const pautadaEnCandidatos = candidatosCalle.find(x => esPautada(x.prop.id));
   if (pautadaEnCandidatos) {
-    console.log(`[Tokko] Candidato pautado encontrado directamente: ${pautadaEnCandidatos.prop.id} — ${pautadaEnCandidatos.prop.address}`);
-    return { prop: pautadaEnCandidatos.prop, candidatos: [] };
+    console.log(`[Tokko] Candidato pautado: ${pautadaEnCandidatos.prop.id} — ${pautadaEnCandidatos.prop.address}`);
+    return { prop: await fetchDetalle(pautadaEnCandidatos.prop), candidatos: [] };
   }
 
   // Sin pautada entre los candidatos → Claude pregunta
