@@ -8,7 +8,8 @@ const BASE_URL   = 'https://www.tokkobroker.com/api/v1';
 
 // ─── INVENTARIO EN MEMORIA ────────────────────────────────────────────────────
 
-let inventarioCache = [];
+let inventarioCache = [];       // propiedades del asesor
+let inventarioTotalCache = [];  // todas las propiedades de la cuenta (fallback)
 let ultimaActualizacion = null;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hora
 
@@ -24,7 +25,6 @@ async function obtenerInventario() {
   }
 
   try {
-    // Tokko no permite filtrar por producer en el query, hay que paginar y filtrar client-side
     const agentId = AGENT_ID ? parseInt(AGENT_ID) : null;
     let todas = [];
     let offset = 0;
@@ -42,10 +42,11 @@ async function obtenerInventario() {
       if (offset >= total) break;
     }
 
-    // Filtrar por productor/asesor si está configurado
+    inventarioTotalCache = todas.filter(p => p.id);
+
     const propiedades = agentId
       ? todas.filter(p => p.id && p.producer?.id === agentId)
-      : todas.filter(p => p.id);
+      : inventarioTotalCache;
 
     inventarioCache = propiedades;
     ultimaActualizacion = ahora;
@@ -132,40 +133,28 @@ const STOPWORDS = new Set([
   'quisiera', 'saber', 'sobre', 'puedo', 'puedes', 'podrias', 'informacion',
 ]);
 
-async function buscarPorTexto(texto) {
-  const inventario = await obtenerInventario();
-  if (!inventario.length) return null;
-
-  const t = normalizar(texto);
-  const numeros  = t.match(/\b\d{3,5}\b/g) || [];
-  const palabras = t.split(/\s+/).filter(p => p.length > 3 && !STOPWORDS.has(p));
-
-  const scored = inventario.map(prop => {
+function scorearInventario(inventario, t, palabras, numeros) {
+  return inventario.map(prop => {
     const dir    = normalizar(prop.address);
     const titulo = normalizar(prop.publication_title);
     const zona   = normalizar(prop.location?.name);
     let score = 0;
     let calleMatch = false;
 
-    // Solo la parte antes del número es la calle principal
     const numPos = dir.search(/\b\d{3,5}\b/);
     const callePrincipal = numPos > 0 ? dir.slice(0, numPos) : dir;
 
-    // Nombre de calle en dirección → señal más fuerte
     for (const pal of palabras) {
       if (callePrincipal.includes(pal)) {
-        // Coincide con la calle principal (antes del número)
         score += 6;
         calleMatch = true;
       } else if (dir.includes(pal)) {
-        // Aparece en la dirección pero no como calle principal (ej: transversal)
         score += 1;
       } else if (zona.includes(pal) || titulo.includes(pal)) {
         score += 1;
       }
     }
 
-    // Número en dirección → señal secundaria
     for (const num of numeros) {
       if (dir.includes(num)) score += 2;
     }
@@ -174,11 +163,8 @@ async function buscarPorTexto(texto) {
   })
   .filter(x => x.score > 0)
   .sort((a, b) => {
-    // 1. Calle match primero
     if (a.calleMatch !== b.calleMatch) return b.calleMatch ? 1 : -1;
-    // 2. Score mayor
     if (a.score !== b.score) return b.score - a.score;
-    // 3. Desempate: número más cercano al mencionado en el texto
     if (numeros.length) {
       const queryNum = parseInt(numeros[0]);
       const numA = parseInt((a.prop.address || '').match(/\b\d{3,5}\b/)?.[0] || '0');
@@ -187,7 +173,17 @@ async function buscarPorTexto(texto) {
     }
     return 0;
   });
+}
 
+async function buscarPorTexto(texto) {
+  const inventario = await obtenerInventario();
+  if (!inventario.length) return null;
+
+  const t = normalizar(texto);
+  const numeros  = t.match(/\b\d{3,5}\b/g) || [];
+  const palabras = t.split(/\s+/).filter(p => p.length > 3 && !STOPWORDS.has(p));
+
+  const scored = scorearInventario(inventario, t, palabras, numeros);
   const candidatosCalle = scored.filter(x => x.calleMatch);
 
   // Helper: fetch detalle completo (con atributos, expensas, etc.) por ID
@@ -200,6 +196,23 @@ async function buscarPorTexto(texto) {
     if (scored.length === 1 && scored[0].score >= 2) {
       console.log(`[Tokko] Match por número: ${scored[0].prop.id} — ${scored[0].prop.address}`);
       return { prop: await fetchDetalle(scored[0].prop), candidatos: [] };
+    }
+    // Fallback: buscar en inventario completo de la cuenta (otras asesores de Vacker)
+    if (inventarioTotalCache.length > inventario.length) {
+      console.log(`[Tokko] Sin match en inventario del asesor — buscando en ${inventarioTotalCache.length} propiedades totales`);
+      const scoredTotal = scorearInventario(inventarioTotalCache, t, palabras, numeros);
+      const calleTotal  = scoredTotal.filter(x => x.calleMatch);
+      if (calleTotal.length === 1) {
+        console.log(`[Tokko] Match total (otro asesor): ${calleTotal[0].prop.id} — ${calleTotal[0].prop.address}`);
+        return { prop: await fetchDetalle(calleTotal[0].prop), candidatos: [] };
+      }
+      if (calleTotal.length > 1) {
+        const pautadaTotal = calleTotal.find(x => esPautada(x.prop.id));
+        if (pautadaTotal) return { prop: await fetchDetalle(pautadaTotal.prop), candidatos: [] };
+        const tops = calleTotal.slice(0, 4);
+        console.log(`[Tokko] ${tops.length} candidatos en inventario total`);
+        return { prop: null, candidatos: tops.map(x => x.prop) };
+      }
     }
     return { prop: null, candidatos: [] };
   }
