@@ -71,7 +71,14 @@ async function conectar() {
       const code = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = code !== DisconnectReason.loggedOut;
       console.log('[WhatsApp] Conexión cerrada. Código:', code, '| Reconectando:', shouldReconnect);
-      if (shouldReconnect) setTimeout(conectar, 3000);
+      if (shouldReconnect) {
+        setTimeout(conectar, 3000);
+      } else {
+        // 401 loggedOut — borrar sesión y reconectar para generar QR nuevo
+        console.log('[WhatsApp] Sesión expirada. Borrando credenciales y generando QR...');
+        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+        setTimeout(conectar, 2000);
+      }
     }
 
     if (connection === 'open') {
