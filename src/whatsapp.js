@@ -160,4 +160,15 @@ async function sendMessage(phoneJid, texto) {
   }
 }
 
-module.exports = { conectar, sendMessage, onMessage, getQR };
+async function resetSession() {
+  console.log('[WhatsApp] Reset manual — borrando sesión...');
+  if (sock) {
+    try { sock.end(); } catch (_) {}
+    sock = null;
+  }
+  currentQR = null;
+  fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+  setTimeout(conectar, 1500);
+}
+
+module.exports = { conectar, sendMessage, onMessage, getQR, resetSession };

@@ -160,6 +160,14 @@ http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/reset-session') {
+    const { resetSession } = require('./src/whatsapp');
+    await resetSession();
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end('<html><body style="background:#111;color:#0f0;font-family:monospace;padding:40px"><h2>Sesión borrada.</h2><p>Entrá a <a href="/qr" style="color:#0f0">/qr</a> en 5 segundos para escanear el nuevo QR.</p></body></html>');
+    return;
+  }
+
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Vacker Agent operativo');
 }).listen(PORT, () => console.log(`[HTTP] Servidor en puerto ${PORT}`));
