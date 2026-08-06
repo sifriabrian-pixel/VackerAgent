@@ -50,7 +50,7 @@ async function conectar() {
     },
     msgRetryCounterCache,
     logger,
-    browser: Browsers.ubuntu('Chrome'),
+    browser: Browsers.macOS('Safari'),
     generateHighQualityLinkPreview: false,
     getMessage: async (key) => {
       const stored = messageStore.get(key.id);
