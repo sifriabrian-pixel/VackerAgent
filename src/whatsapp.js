@@ -28,7 +28,8 @@ let onMessageCallback = null;
 let currentQR = null;
 let reconnectCount = 0;
 let lastReconnectTime = 0;
-let waVersion = null; // se fetchea una sola vez
+let waVersion = null;
+let reconnectTimer = null; // evita múltiples reconexiones simultáneas
 
 function getQR() { return currentQR; }
 
@@ -79,31 +80,30 @@ async function conectar() {
       const shouldReconnect = code !== DisconnectReason.loggedOut;
       console.log('[WhatsApp] Conexión cerrada. Código:', code, '| Reconectando:', shouldReconnect);
 
+      const scheduleReconexion = (ms) => {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(() => { reconnectTimer = null; conectar(); }, ms);
+      };
+
       if (!shouldReconnect) {
-        // 401 loggedOut — borrar sesión y reconectar para generar QR nuevo
         console.log('[WhatsApp] Sesión expirada. Borrando credenciales y generando QR...');
         reconnectCount = 0;
         fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-        setTimeout(conectar, 2000);
+        scheduleReconexion(2000);
       } else if (code === 440) {
-        // 440 replaced — circuit breaker: si pasa 5 veces seguidas en 30s, parar
         const ahora = Date.now();
-        if (ahora - lastReconnectTime < 30000) {
-          reconnectCount++;
-        } else {
-          reconnectCount = 1;
-        }
+        reconnectCount = (ahora - lastReconnectTime < 30000) ? reconnectCount + 1 : 1;
         lastReconnectTime = ahora;
 
         if (reconnectCount >= 5) {
-          console.log('[WhatsApp] Demasiados 440 seguidos — deteniendo reconexión. Usá /reset-session para reiniciar.');
+          console.log('[WhatsApp] Demasiados 440 seguidos — deteniendo. Usá /reset-session para reiniciar.');
           reconnectCount = 0;
         } else {
-          console.log(`[WhatsApp] 440 replaced (${reconnectCount}/5) — reconectando en 8s...`);
-          setTimeout(conectar, 8000);
+          console.log(`[WhatsApp] 440 replaced (${reconnectCount}/5) — reconectando en 10s...`);
+          scheduleReconexion(10000);
         }
       } else {
-        setTimeout(conectar, 3000);
+        scheduleReconexion(5000);
       }
     }
 
@@ -188,13 +188,15 @@ async function sendMessage(phoneJid, texto) {
 
 async function resetSession() {
   console.log('[WhatsApp] Reset manual — borrando sesión...');
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   if (sock) {
     try { sock.end(); } catch (_) {}
     sock = null;
   }
   currentQR = null;
+  reconnectCount = 0;
   fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-  setTimeout(conectar, 1500);
+  setTimeout(() => conectar(), 1500);
 }
 
 module.exports = { conectar, sendMessage, onMessage, getQR, resetSession };
