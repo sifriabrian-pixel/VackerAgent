@@ -367,7 +367,7 @@ function formatearFicha(prop) {
   const situacion   = prop.situation     ? `\nSituación: ${prop.situation}` : '';
   const cocheras    = prop.parking_lot_amount != null ? `\nCocheras: ${prop.parking_lot_amount}` : '';
 
-  const desc = prop.description ? `\nDescripción: ${prop.description.replace(/<[^>]*>/g, '').slice(0, 400)}` : '';
+  const desc = prop.description ? `\nDescripción: ${prop.description.replace(/<[^>]*>/g, '').slice(0, 900)}` : '';
   const url = `\nVer en web: ${generarUrlVacker(prop)}`;
   return `${prop.publication_title || prop.address}
 Dirección: ${prop.address || '—'}
