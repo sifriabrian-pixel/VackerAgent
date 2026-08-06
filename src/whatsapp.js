@@ -26,6 +26,8 @@ const jidSendMap = new Map(); // phone@s.whatsapp.net → lid@lid
 let sock = null;
 let onMessageCallback = null;
 let currentQR = null;
+let reconnectCount = 0;
+let lastReconnectTime = 0;
 
 function getQR() { return currentQR; }
 
@@ -71,13 +73,32 @@ async function conectar() {
       const code = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = code !== DisconnectReason.loggedOut;
       console.log('[WhatsApp] Conexión cerrada. Código:', code, '| Reconectando:', shouldReconnect);
-      if (shouldReconnect) {
-        setTimeout(conectar, 3000);
-      } else {
+
+      if (!shouldReconnect) {
         // 401 loggedOut — borrar sesión y reconectar para generar QR nuevo
         console.log('[WhatsApp] Sesión expirada. Borrando credenciales y generando QR...');
+        reconnectCount = 0;
         fs.rmSync(AUTH_DIR, { recursive: true, force: true });
         setTimeout(conectar, 2000);
+      } else if (code === 440) {
+        // 440 replaced — circuit breaker: si pasa 5 veces seguidas en 30s, parar
+        const ahora = Date.now();
+        if (ahora - lastReconnectTime < 30000) {
+          reconnectCount++;
+        } else {
+          reconnectCount = 1;
+        }
+        lastReconnectTime = ahora;
+
+        if (reconnectCount >= 5) {
+          console.log('[WhatsApp] Demasiados 440 seguidos — deteniendo reconexión. Usá /reset-session para reiniciar.');
+          reconnectCount = 0;
+        } else {
+          console.log(`[WhatsApp] 440 replaced (${reconnectCount}/5) — reconectando en 8s...`);
+          setTimeout(conectar, 8000);
+        }
+      } else {
+        setTimeout(conectar, 3000);
       }
     }
 
