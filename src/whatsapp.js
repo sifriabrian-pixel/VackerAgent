@@ -28,6 +28,7 @@ let onMessageCallback = null;
 let currentQR = null;
 let reconnectCount = 0;
 let lastReconnectTime = 0;
+let waVersion = null; // se fetchea una sola vez
 
 function getQR() { return currentQR; }
 
@@ -39,20 +40,24 @@ async function conectar() {
   if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-  const { version } = await fetchLatestBaileysVersion();
-  console.log('[WhatsApp] Versión WA:', version.join('.'));
+  if (!waVersion) {
+    const { version } = await fetchLatestBaileysVersion();
+    waVersion = version;
+    console.log('[WhatsApp] Versión WA:', waVersion.join('.'));
+  }
 
   const logger = pino({ level: 'warn' });
 
   sock = makeWASocket({
-    version,
+    version: waVersion,
     auth: {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
     msgRetryCounterCache,
     logger,
-    browser: Browsers.macOS('Safari'),
+    browser: Browsers.windows('Edge'),
+    syncFullHistory: false,
     generateHighQualityLinkPreview: false,
     getMessage: async (key) => {
       const stored = messageStore.get(key.id);
