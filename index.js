@@ -11,7 +11,7 @@ const { conectar, sendMessage, onMessage, getQR } = require('./src/whatsapp');
 const QRCode = require('qrcode');
 const { getReply }                         = require('./src/claude');
 const { addMessage, getLead, updateLead, isActivated } = require('./src/memory');
-const { buscarPropiedad, formatearFicha, crearContacto } = require('./src/tokko');
+const { buscarPropiedad, formatearFicha, crearContacto, buscarPorSlugPortal } = require('./src/tokko');
 const { iniciarScheduler }                 = require('./src/scheduler');
 const { ACTIVATION_TRIGGERS, META_TRIGGERS } = require('./prompts/vacker');
 
@@ -68,7 +68,22 @@ async function procesarMensaje(jid, texto) {
   let fichaExterna = null;
   const vackerIdNuevo = texto.match(/vacker\.com\.ar\/p\/(\d+)/)?.[1];
   const esNuevaPropiedad = vackerIdNuevo && String(lead.propiedadTokkoId) !== vackerIdNuevo;
-  if ((!lead.propiedadTokkoId || esNuevaPropiedad) && !portalExterno) {
+
+  if (portalExterno && (!lead.propiedadTokkoId || esNuevaPropiedad)) {
+    // Intentar extraer dirección del slug de la URL del portal
+    const urlMatch = texto.match(/https?:\/\/[^\s]+/);
+    if (urlMatch) {
+      const { prop, candidatos } = await buscarPorSlugPortal(urlMatch[0]);
+      if (prop) {
+        fichaTokko = formatearFicha(prop);
+        updateLead(jid, { propiedadTokkoId: prop.id, fichaExterna: null });
+        console.log(`[Portal] Propiedad encontrada via slug: ${prop.id}`);
+      } else if (candidatos.length > 0) {
+        candidatosTokko = candidatos;
+        console.log(`[Portal] Candidatos via slug: ${candidatos.map(c => c.id).join(', ')}`);
+      }
+    }
+  } else if (!lead.propiedadTokkoId || esNuevaPropiedad) {
     const { prop, candidatos, fichaExterna: fe } = await buscarPropiedad(texto);
     if (prop) {
       fichaTokko = formatearFicha(prop);

@@ -443,4 +443,45 @@ function detectarPortal(texto) {
   return match ? match.nombre : null;
 }
 
-module.exports = { obtenerInventario, formatearInventarioParaPrompt, buscarPropiedad, formatearFicha, crearContacto, detectarPortal };
+const STOPWORDS_SLUG = new Set([
+  'departamento', 'depto', 'casa', 'ph', 'local', 'oficina', 'terreno', 'lote',
+  'venta', 'alquiler', 'renta', 'en', 'de', 'la', 'el', 'los', 'las', 'del',
+  'propiedades', 'inmuebles', 'propiedad', 'inmueble', 'rosario', 'santa', 'fe',
+  'ambientes', 'dormitorios', 'habitaciones', 'banos', 'mla', 'mlu', 'jm',
+  'argentina', 'clasificado', 'veclapin', 'ficha', 'detalle', 'ver',
+]);
+
+function extraerDireccionDeSlug(url) {
+  try {
+    const pathname = new URL(url).pathname;
+    // Tomar la última parte del path (después del último /)
+    const segmentos = pathname.split('/').filter(Boolean);
+    const slug = segmentos[segmentos.length - 1] || segmentos.join(' ');
+
+    // Limpiar: quitar extensión, separar por guiones/guión_bajo
+    const palabras = slug
+      .replace(/\.\w+$/, '')           // quitar .html
+      .replace(/[-_]/g, ' ')           // guiones → espacios
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(p => {
+        if (p.length < 3) return false;
+        if (/^\d{5,}$/.test(p)) return false; // IDs largos
+        if (STOPWORDS_SLUG.has(p)) return false;
+        return true;
+      });
+
+    return palabras.length >= 1 ? palabras.join(' ') : null;
+  } catch {
+    return null;
+  }
+}
+
+async function buscarPorSlugPortal(url) {
+  const direccion = extraerDireccionDeSlug(url);
+  if (!direccion) return { prop: null, candidatos: [] };
+  console.log(`[Portal] Dirección extraída del slug: "${direccion}"`);
+  return await buscarPorTexto(direccion);
+}
+
+module.exports = { obtenerInventario, formatearInventarioParaPrompt, buscarPropiedad, formatearFicha, crearContacto, detectarPortal, buscarPorSlugPortal };
