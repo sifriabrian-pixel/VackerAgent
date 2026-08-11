@@ -477,11 +477,59 @@ function extraerDireccionDeSlug(url) {
   }
 }
 
+async function scrapeAddressFromPortal(url) {
+  try {
+    const res = await axios.get(url, {
+      timeout: 6000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'es-AR,es;q=0.9',
+      },
+    });
+    const html = res.data;
+
+    // 1. JSON-LD (más confiable)
+    const jsonLdMatches = [...html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)];
+    for (const m of jsonLdMatches) {
+      try {
+        const data = JSON.parse(m[1]);
+        const items = Array.isArray(data) ? data : [data];
+        for (const item of items) {
+          const street = item?.address?.streetAddress || item?.location?.address?.streetAddress;
+          if (street) { console.log(`[Portal] JSON-LD address: "${street}"`); return street; }
+        }
+      } catch (_) {}
+    }
+
+    // 2. og:title (ZonaProp incluye dirección acá)
+    const ogTitle = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)?.[1];
+    if (ogTitle) { console.log(`[Portal] og:title: "${ogTitle}"`); return ogTitle; }
+
+    // 3. <title>
+    const title = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1];
+    if (title) { console.log(`[Portal] title: "${title}"`); return title; }
+
+    return null;
+  } catch (err) {
+    console.log(`[Portal] No se pudo fetchear: ${err.message}`);
+    return null;
+  }
+}
+
 async function buscarPorSlugPortal(url) {
-  const direccion = extraerDireccionDeSlug(url);
-  if (!direccion) return { prop: null, candidatos: [] };
-  console.log(`[Portal] Dirección extraída del slug: "${direccion}"`);
-  return await buscarPorTexto(direccion);
+  // Primero intentar fetchear la página para extraer dirección real
+  const textoExtraido = await scrapeAddressFromPortal(url);
+  if (textoExtraido) {
+    const resultado = await buscarPorTexto(textoExtraido);
+    if (resultado.prop || resultado.candidatos.length > 0) return resultado;
+  }
+
+  // Fallback: slug de la URL
+  const direccionSlug = extraerDireccionDeSlug(url);
+  if (!direccionSlug) return { prop: null, candidatos: [] };
+  console.log(`[Portal] Fallback slug: "${direccionSlug}"`);
+  return await buscarPorTexto(direccionSlug);
 }
 
 module.exports = { obtenerInventario, formatearInventarioParaPrompt, buscarPropiedad, formatearFicha, crearContacto, detectarPortal, buscarPorSlugPortal };
