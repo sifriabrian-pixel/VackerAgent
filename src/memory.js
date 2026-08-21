@@ -3,8 +3,30 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR  = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-const LEADS_FILE = path.join(DATA_DIR, 'leads.json');
+const DATA_DIR    = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+const LEADS_FILE  = path.join(DATA_DIR, 'leads.json');
+const BLOCK_FILE  = path.join(DATA_DIR, 'blocked.json');
+
+// Contactos personales bloqueados (el agente los ignora siempre)
+let blocked = new Set();
+try {
+  if (fs.existsSync(BLOCK_FILE)) {
+    blocked = new Set(JSON.parse(fs.readFileSync(BLOCK_FILE, 'utf8')));
+    console.log(`[Memory] ${blocked.size} contactos bloqueados cargados`);
+  }
+} catch (_) {}
+
+function isBlocked(jid) { return blocked.has(jid); }
+
+function blockContact(jid) {
+  blocked.add(jid);
+  fs.writeFileSync(BLOCK_FILE, JSON.stringify([...blocked], null, 2), 'utf8');
+}
+
+function unblockContact(jid) {
+  blocked.delete(jid);
+  fs.writeFileSync(BLOCK_FILE, JSON.stringify([...blocked], null, 2), 'utf8');
+}
 
 // Cargar leads persistidos al arranque
 const leads = (() => {
@@ -45,6 +67,7 @@ function getLead(jid) {
     leads[jid] = {
       jid,
       history: [],
+      creadoEn: Date.now(),
       // Datos del lead
       nombre: null,
       telefono: jid.replace('@s.whatsapp.net', '').replace('@lid', ''),
@@ -61,6 +84,8 @@ function getLead(jid) {
       asesorIntervino: false,
       // Visita
       visitaFecha: null,
+      visitaEventId: null,
+      noShow: false,
       reminderEnviado: false,
       postVisitaEnviado: false,
       // Follow-up
@@ -109,4 +134,4 @@ function isActivated(jid) {
   return lead && lead.history.length > 0;
 }
 
-module.exports = { getLead, updateLead, addMessage, getHistory, getAllLeads, isActivated };
+module.exports = { getLead, updateLead, addMessage, getHistory, getAllLeads, isActivated, isBlocked, blockContact, unblockContact };

@@ -33,7 +33,8 @@ const ACTIVATION_TRIGGERS = [
   'vi la publicación en mercado libre',
   'zonaprop.com.ar',
   'argenprop.com',
-  'mercadolibre.com.ar',
+  'inmuebles.mercadolibre.com.ar',
+  'mercadolibre.com.ar/inmuebles',
   'properati.com',
   // Intención directa
   'me interesa conocer más sobre las propiedades',
@@ -90,7 +91,7 @@ Caso 3b — Ves [CANDIDATOS EN TOKKO — no estoy seguro cuál es]:
 Hay varias propiedades que podrían coincidir. Hacé 1 o 2 preguntas cortas para identificar cuál le interesa: tipo de propiedad (departamento, casa, local), cantidad de ambientes, o precio aproximado que recuerda haber visto. No menciones los candidatos ni sus links — solo preguntá para confirmar.
 
 Caso 4 — Ves [CONTEXTO: El lead llegó desde un portal externo]:
-Decile que no podés abrir ese link desde acá y pedile la dirección o nombre de la propiedad que le interesa.
+Decile que los links de ese portal no te cargan la ficha completa. Si el contexto incluye info del link (tipo, ambientes, zona, operación), usala para hacer el mensaje más específico. Ejemplo: "Vi que te interesa un departamento de 2 dormitorios en venta en República de la Sexta. Me compartís la dirección exacta para pasarte toda la info?" Si no hay info del slug, pedile directamente la dirección o nombre de la propiedad.
 
 Caso 5 — La propiedad que pide no está en tu inventario:
 Reconocelo sin vueltas y ofrecé la opción más parecida que tengas.

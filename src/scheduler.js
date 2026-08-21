@@ -21,7 +21,7 @@ function iniciarScheduler(sendMessage) {
   // Corre cada 30 minutos
   cron.schedule('*/30 * * * *', async () => {
     // Sincronizar visitas desde Google Calendar (siempre, no solo en horario)
-    await sincronizarVisitas(getLead, updateLead).catch(err =>
+    await sincronizarVisitas(getLead, updateLead, getAllLeads).catch(err =>
       console.error('[Scheduler] Error calendar sync:', err.message)
     );
 

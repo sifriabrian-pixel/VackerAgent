@@ -451,6 +451,44 @@ const STOPWORDS_SLUG = new Set([
   'argentina', 'clasificado', 'veclapin', 'ficha', 'detalle', 'ver',
 ]);
 
+function interpretarSlugPortal(url) {
+  try {
+    const pathname = new URL(url).pathname;
+    const slug = pathname.replace(/\//g, ' ').replace(/[-_.]/g, ' ').toLowerCase();
+    const partes = [];
+
+    // Tipo de propiedad
+    const tipos = [['departamento', 'departamento'], ['depto', 'departamento'],
+                   ['casa', 'casa'], [' ph ', 'PH'], ['local', 'local'],
+                   ['oficina', 'oficina'], ['terreno', 'terreno'], ['lote', 'lote']];
+    for (const [k, v] of tipos) {
+      if (slug.includes(k)) { partes.push(v); break; }
+    }
+
+    // Operación
+    if (slug.includes('venta')) partes.push('en venta');
+    else if (slug.includes('alquiler') || slug.includes('renta')) partes.push('en alquiler');
+
+    // Ambientes / dormitorios
+    const dormsMatch = slug.match(/(\d)\s*dorm/);
+    const ambMatch   = slug.match(/(\d)\s*amb/);
+    if (dormsMatch)      partes.push(`${dormsMatch[1]} dormitorios`);
+    else if (ambMatch)   partes.push(`${ambMatch[1]} ambientes`);
+
+    // Zona/barrio
+    const zonaMatch = slug.match(/(?:barrio|zona|en)\s+([a-záéíóúñ]{4,}(?:\s+[a-záéíóúñ]{2,}){0,3})/i);
+    if (zonaMatch) {
+      const zona = zonaMatch[1].trim();
+      const stopZ = new Set(['venta', 'alquiler', 'barrio', 'zona']);
+      if (!stopZ.has(zona)) partes.push(`en ${zona}`);
+    }
+
+    return partes.length > 0 ? partes.join(', ') : null;
+  } catch {
+    return null;
+  }
+}
+
 function extraerDireccionDeSlug(url) {
   try {
     const pathname = new URL(url).pathname;
@@ -532,4 +570,4 @@ async function buscarPorSlugPortal(url) {
   return await buscarPorTexto(direccionSlug);
 }
 
-module.exports = { obtenerInventario, formatearInventarioParaPrompt, buscarPropiedad, formatearFicha, crearContacto, detectarPortal, buscarPorSlugPortal };
+module.exports = { obtenerInventario, formatearInventarioParaPrompt, buscarPropiedad, formatearFicha, crearContacto, detectarPortal, buscarPorSlugPortal, interpretarSlugPortal };
