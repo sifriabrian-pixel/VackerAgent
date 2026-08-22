@@ -133,6 +133,10 @@ async function procesarMensaje(jid, texto) {
   addMessage(jid, 'user', mensajeParaClaude);
   console.log(`[Mensaje] ${jid}: ${texto.substring(0, 60)}`);
 
+  // Delay humano antes de responder: 4-8 segundos
+  const delay = 4000 + Math.floor(Math.random() * 4000);
+  await new Promise(r => setTimeout(r, delay));
+
   try {
     const { text: respuesta, triggers, leadData } = await getReply(getLead(jid).history);
     addMessage(jid, 'assistant', respuesta);

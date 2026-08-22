@@ -173,9 +173,11 @@ async function sendMessage(phoneJid, texto) {
   const sendJid = jidSendMap.get(phoneJid) || phoneJid;
   try {
     await sock.presenceSubscribe(sendJid);
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 500));
     await sock.sendPresenceUpdate('composing', sendJid);
-    await new Promise(r => setTimeout(r, 1500));
+    // ~50ms por caracter, mínimo 2s, máximo 6s
+    const typingMs = Math.min(6000, Math.max(2000, texto.length * 50));
+    await new Promise(r => setTimeout(r, typingMs));
     const result = await sock.sendMessage(sendJid, { text: texto, linkPreview: false });
     if (result?.key?.id) messageStore.set(result.key.id, result);
     await sock.sendPresenceUpdate('paused', sendJid);
