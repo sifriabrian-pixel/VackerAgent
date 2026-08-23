@@ -7,7 +7,7 @@ console.log('[Config] TOKKO_API_KEY:',     process.env.TOKKO_API_KEY      ? 'OK'
 console.log('[Config] TOKKO_AGENT_ID:',    process.env.TOKKO_AGENT_ID     || 'no configurado');
 
 const http = require('http');
-const { conectar, sendMessage, onMessage, getQR } = require('./src/whatsapp');
+const { conectar, sendMessage, onMessage, onAsesor, getQR } = require('./src/whatsapp');
 const QRCode = require('qrcode');
 const { getReply }                         = require('./src/claude');
 const { addMessage, getLead, updateLead, isActivated, isBlocked, blockContact, unblockContact, getAllLeads } = require('./src/memory');
@@ -374,6 +374,13 @@ http.createServer(async (req, res) => {
 
 conectar().then(() => {
   onMessage(procesarMensaje);
+  onAsesor((jid) => {
+    const lead = getLead(jid);
+    if (lead?.history?.length > 0 && !lead.asesorIntervino) {
+      updateLead(jid, { asesorIntervino: true, handoffHecho: true });
+      console.log(`[Asesor] Ezequiel intervino en ${jid} — agente pausado`);
+    }
+  });
   iniciarScheduler(sendMessage);
   console.log('[Agent] Vacker Agent iniciado ✓');
 }).catch(err => {

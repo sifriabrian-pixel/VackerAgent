@@ -25,6 +25,7 @@ const jidSendMap = new Map(); // phone@s.whatsapp.net → lid@lid
 
 let sock = null;
 let onMessageCallback = null;
+let onAsesorCallback = null;
 let currentQR = null;
 let reconnectCount = 0;
 let lastReconnectTime = 0;
@@ -35,6 +36,10 @@ function getQR() { return currentQR; }
 
 function onMessage(callback) {
   onMessageCallback = callback;
+}
+
+function onAsesor(callback) {
+  onAsesorCallback = callback;
 }
 
 async function conectar() {
@@ -130,7 +135,6 @@ async function conectar() {
     if (type !== 'notify') return;
 
     for (const msg of messages) {
-      if (msg.key.fromMe) continue;
       if (!msg.message) continue;
 
       const rawJid = msg.key.remoteJid;
@@ -139,6 +143,14 @@ async function conectar() {
       const jid = rawJid.endsWith('@lid') && msg.key.senderPn
         ? msg.key.senderPn
         : rawJid;
+
+      // Si Ezequiel escribe manualmente → pausar el agente en ese chat
+      if (msg.key.fromMe) {
+        if (onAsesorCallback) {
+          try { await onAsesorCallback(jid); } catch (_) {}
+        }
+        continue;
+      }
 
       if (rawJid.endsWith('@lid') && msg.key.senderPn) {
         jidSendMap.set(msg.key.senderPn, rawJid);
@@ -201,4 +213,4 @@ async function resetSession() {
   setTimeout(() => conectar(), 1500);
 }
 
-module.exports = { conectar, sendMessage, onMessage, getQR, resetSession };
+module.exports = { conectar, sendMessage, onMessage, onAsesor, getQR, resetSession };
