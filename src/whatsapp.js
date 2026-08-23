@@ -146,8 +146,11 @@ async function conectar() {
 
       // Si Ezequiel escribe manualmente → pausar el agente en ese chat
       if (msg.key.fromMe) {
+        const textoSaliente = msg.message?.conversation
+          || msg.message?.extendedTextMessage?.text
+          || '';
         if (onAsesorCallback) {
-          try { await onAsesorCallback(jid); } catch (_) {}
+          try { await onAsesorCallback(jid, textoSaliente); } catch (_) {}
         }
         continue;
       }

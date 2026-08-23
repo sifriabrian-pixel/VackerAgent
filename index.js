@@ -37,6 +37,13 @@ async function procesarMensaje(jid, texto) {
     return;
   }
 
+  // Comando manual para cortar el agente
+  if (texto.toLowerCase().includes('finalizar agente')) {
+    updateLead(jid, { asesorIntervino: true, handoffHecho: true });
+    console.log(`[Finalizar] Agente cortado manualmente en ${jid}`);
+    return;
+  }
+
   const yaActivado = isActivated(jid);
   if (!yaActivado && !esLeadInmobiliario(texto)) {
     console.log(`[Filtro] Ignorado (no es lead): ${jid}`);
@@ -374,11 +381,12 @@ http.createServer(async (req, res) => {
 
 conectar().then(() => {
   onMessage(procesarMensaje);
-  onAsesor((jid) => {
+  onAsesor((jid, textoSaliente) => {
+    const esFinalizar = textoSaliente?.toLowerCase().includes('finalizar agente');
     const lead = getLead(jid);
-    if (lead?.history?.length > 0 && !lead.asesorIntervino) {
+    if (esFinalizar || (lead?.history?.length > 0 && !lead.asesorIntervino)) {
       updateLead(jid, { asesorIntervino: true, handoffHecho: true });
-      console.log(`[Asesor] Ezequiel intervino en ${jid} — agente pausado`);
+      console.log(`[Asesor] ${esFinalizar ? 'Finalizar manual' : 'Intervención'} en ${jid} — agente pausado`);
     }
   });
   iniciarScheduler(sendMessage);
