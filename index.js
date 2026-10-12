@@ -5,12 +5,15 @@ require('dotenv').config();
 console.log('[Config] ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY  ? 'OK' : 'FALTA');
 console.log('[Config] TOKKO_API_KEY:',     process.env.TOKKO_API_KEY      ? 'OK' : 'FALTA');
 console.log('[Config] TOKKO_AGENT_ID:',    process.env.TOKKO_AGENT_ID     || 'no configurado');
+console.log('[Config] ADMIN_TOKEN:',       process.env.ADMIN_TOKEN        ? 'OK' : 'FALTA — /dashboard, /qr, /block y /reset-session responden 401');
+console.log('[Config] SCHEDULER_ENABLED:', process.env.SCHEDULER_ENABLED === 'true' ? 'true' : 'false (sin mensajes automáticos)');
 
 const http = require('http');
+const crypto = require('crypto');
 const { conectar, sendMessage, onMessage, onAsesor, getQR } = require('./src/whatsapp');
 const QRCode = require('qrcode');
 const { getReply }                         = require('./src/claude');
-const { addMessage, getLead, updateLead, isActivated, isBlocked, blockContact, unblockContact, getAllLeads } = require('./src/memory');
+const { addMessage, getLead, findLead, updateLead, isActivated, isBlocked, blockContact, unblockContact, getAllLeads } = require('./src/memory');
 const { buscarPropiedad, formatearFicha, crearContacto, buscarPorSlugPortal, interpretarSlugPortal } = require('./src/tokko');
 const { iniciarScheduler }                 = require('./src/scheduler');
 const { ACTIVATION_TRIGGERS, META_TRIGGERS } = require('./prompts/vacker');
@@ -29,18 +32,26 @@ function esCanalMeta(texto) {
   return META_TRIGGERS.some(trigger => t.includes(trigger));
 }
 
+// ─── ACCESO A LAS PÁGINAS DE ADMINISTRACIÓN ───────────────────────────────────
+
+const RUTAS_ADMIN = new Set(['/qr', '/reset-session', '/block', '/unblock', '/dashboard']);
+
+// El token va en ?token=... o en el header Authorization: Bearer ...
+// Sin ADMIN_TOKEN configurado no entra nadie.
+function autorizado(req, url) {
+  const esperado = process.env.ADMIN_TOKEN;
+  if (!esperado) return false;
+  const recibido = url.searchParams.get('token') || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const a = Buffer.from(String(recibido));
+  const b = Buffer.from(esperado);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 // ─── PROCESAMIENTO DE MENSAJE ─────────────────────────────────────────────────
 
 async function procesarMensaje(jid, texto) {
   if (isBlocked(jid)) {
     console.log(`[Filtro] Bloqueado (contacto personal): ${jid}`);
-    return;
-  }
-
-  // Comando manual para cortar el agente
-  if (texto.toLowerCase().includes('finalizar agente')) {
-    updateLead(jid, { asesorIntervino: true, handoffHecho: true });
-    console.log(`[Finalizar] Agente cortado manualmente en ${jid}`);
     return;
   }
 
@@ -183,6 +194,14 @@ async function procesarMensaje(jid, texto) {
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost`);
 
+  if (RUTAS_ADMIN.has(url.pathname) && !autorizado(req, url)) {
+    res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('No autorizado');
+    return;
+  }
+  // Para que los links entre páginas sigan funcionando
+  const tk = `token=${encodeURIComponent(url.searchParams.get('token') || '')}`;
+
   if (url.pathname === '/qr') {
     const qr = getQR();
     if (!qr) {
@@ -200,7 +219,7 @@ http.createServer(async (req, res) => {
     const { resetSession } = require('./src/whatsapp');
     await resetSession();
     res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end('<html><body style="background:#111;color:#0f0;font-family:monospace;padding:40px"><h2>Sesión borrada.</h2><p>Entrá a <a href="/qr" style="color:#0f0">/qr</a> en 5 segundos para escanear el nuevo QR.</p></body></html>');
+    res.end('<html><body style="background:#111;color:#0f0;font-family:monospace;padding:40px"><h2>Sesión borrada.</h2><p>Entrá a <a href="/qr?${tk}" style="color:#0f0">/qr</a> en 5 segundos para escanear el nuevo QR.</p></body></html>');
     return;
   }
 
@@ -210,7 +229,7 @@ http.createServer(async (req, res) => {
     const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
     blockContact(jid);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(`<html><body style="background:#111;color:#0f0;font-family:monospace;padding:40px"><h2>Bloqueado: ${phone}</h2><p>El agente ya no va a responder a ese contacto.</p><p><a href="/dashboard" style="color:#0f0">← Dashboard</a></p></body></html>`);
+    res.end(`<html><body style="background:#111;color:#0f0;font-family:monospace;padding:40px"><h2>Bloqueado: ${phone}</h2><p>El agente ya no va a responder a ese contacto.</p><p><a href="/dashboard?${tk}" style="color:#0f0">← Dashboard</a></p></body></html>`);
     return;
   }
 
@@ -220,7 +239,7 @@ http.createServer(async (req, res) => {
     const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
     unblockContact(jid);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(`<html><body style="background:#111;color:#0f0;font-family:monospace;padding:40px"><h2>Desbloqueado: ${phone}</h2><p><a href="/dashboard" style="color:#0f0">← Dashboard</a></p></body></html>`);
+    res.end(`<html><body style="background:#111;color:#0f0;font-family:monospace;padding:40px"><h2>Desbloqueado: ${phone}</h2><p><a href="/dashboard?${tk}" style="color:#0f0">← Dashboard</a></p></body></html>`);
     return;
   }
 
@@ -312,10 +331,10 @@ http.createServer(async (req, res) => {
 <p class="sub">Últimos ${dias} días · Se recarga cada 2 min</p>
 
 <div class="filtros">
-  <a href="/dashboard?dias=7" ${dias===7?'class="active"':''}>7 días</a>
-  <a href="/dashboard?dias=30" ${dias===30?'class="active"':''}>30 días</a>
-  <a href="/dashboard?dias=90" ${dias===90?'class="active"':''}>90 días</a>
-  <a href="/dashboard?dias=9999" ${dias===9999?'class="active"':''}>Todo</a>
+  <a href="/dashboard?dias=7&${tk}" ${dias===7?'class="active"':''}>7 días</a>
+  <a href="/dashboard?dias=30&${tk}" ${dias===30?'class="active"':''}>30 días</a>
+  <a href="/dashboard?dias=90&${tk}" ${dias===90?'class="active"':''}>90 días</a>
+  <a href="/dashboard?dias=9999&${tk}" ${dias===9999?'class="active"':''}>Todo</a>
 </div>
 
 <div class="cards">
@@ -382,9 +401,12 @@ http.createServer(async (req, res) => {
 conectar().then(() => {
   onMessage(procesarMensaje);
   onAsesor((jid, textoSaliente) => {
+    // Un mensaje de Ezequiel nunca crea un lead: solo pausa al agente en
+    // conversaciones que el agente ya tenía abiertas.
+    const lead = findLead(jid);
+    if (!lead || !lead.history?.length) return;
     const esFinalizar = textoSaliente?.toLowerCase().includes('finalizar agente');
-    const lead = getLead(jid);
-    if (esFinalizar || (lead?.history?.length > 0 && !lead.asesorIntervino)) {
+    if (esFinalizar || !lead.asesorIntervino) {
       updateLead(jid, { asesorIntervino: true, handoffHecho: true });
       console.log(`[Asesor] ${esFinalizar ? 'Finalizar manual' : 'Intervención'} en ${jid} — agente pausado`);
     }

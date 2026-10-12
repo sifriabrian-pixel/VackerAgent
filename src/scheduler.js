@@ -18,6 +18,13 @@ function enHorarioPermitido() {
 }
 
 function iniciarScheduler(sendMessage) {
+  // Apagado por defecto: sin SCHEDULER_ENABLED=true el cron no corre y no se
+  // envía ningún mensaje automático (seguimientos, recordatorios, post-visita).
+  if (process.env.SCHEDULER_ENABLED !== 'true') {
+    console.log('[Scheduler] Apagado (SCHEDULER_ENABLED != true) — no se envían mensajes automáticos');
+    return;
+  }
+
   // Corre cada 30 minutos
   cron.schedule('*/30 * * * *', async () => {
     // Sincronizar visitas desde Google Calendar (siempre, no solo en horario)

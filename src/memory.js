@@ -104,6 +104,11 @@ function getLead(jid) {
   return leads[jid];
 }
 
+// Devuelve el lead si existe. A diferencia de getLead, NO lo crea.
+function findLead(jid) {
+  return leads[jid] || null;
+}
+
 function updateLead(jid, data) {
   const lead = getLead(jid);
   Object.assign(lead, data);
@@ -134,4 +139,4 @@ function isActivated(jid) {
   return lead && lead.history.length > 0;
 }
 
-module.exports = { getLead, updateLead, addMessage, getHistory, getAllLeads, isActivated, isBlocked, blockContact, unblockContact };
+module.exports = { getLead, findLead, updateLead, addMessage, getHistory, getAllLeads, isActivated, isBlocked, blockContact, unblockContact };
