@@ -7,10 +7,12 @@
 const repo = require('./repo');
 const core = require('./core');
 const tokko = require('./tokko');
+const config = require('../config/vacker');
 
 const MAX_INTENTOS = 3;
 const RETRY_BASE_MS = Number(process.env.RETRY_BASE_MS || 20000);
 const esperaMs = () => Number(process.env.ESPERA_MENSAJES_MS ?? 3000);
+const MSG_REINICIO = 'Conversación reiniciada. Podés empezar de nuevo.';
 const MSG_ERROR = 'Perdón, tuve un problema técnico. ¿Me escribís de nuevo en unos minutos?';
 
 let provider = null;
@@ -114,6 +116,7 @@ function handleEvents(eventos) {
   const aProcesar = new Set();
   for (const ev of eventos) {
     if (ev.kind === 'inbound') {
+      if (esReinicio(ev.input)) { reset(repo.digitos(ev.input.conversationId)).catch((e) => console.error('[pruebas] Error reiniciando:', e)); continue; }
       const r = core.ingest(ev.input);
       if (r.decision === 'lead' && r.nuevo) aProcesar.add(repo.digitos(ev.input.conversationId));
     } else if (ev.kind === 'owner') {
@@ -124,6 +127,25 @@ function handleEvents(eventos) {
   }
   for (const numero of aProcesar) kick(numero);
   return [...aProcesar];
+}
+
+// Reinicio de pruebas (config.pruebas.reiniciar). Solo vale para quien ya es un
+// lead: a un contacto personal que escriba eso no se le responde nada.
+function esReinicio(input) {
+  const comando = config.pruebas?.reiniciar;
+  if (!comando || String(input.text || '').trim().toLowerCase() !== comando) return false;
+  return repo.getContacto(repo.digitos(input.conversationId))?.tipo === 'lead' && repo.marcarVisto(input.messageId);
+}
+
+async function reset(numero) {
+  if (enCurso.has(numero)) await enCurso.get(numero).promise;
+  repo.resetConversacion(numero);
+  console.log(`[pruebas] Conversación reiniciada: ${numero}`);
+  try {
+    await provider.sendMessage(numero, MSG_REINICIO);
+  } catch (e) {
+    console.error(`[wa] Error enviando a ${numero}:`, e.message);
+  }
 }
 
 // Un pendiente resuelto como lead desde el panel: se responde lo retenido.

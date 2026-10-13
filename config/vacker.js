@@ -31,4 +31,8 @@ module.exports = {
   tokko: { canales: ['meta'] },
 
   historialMax: 40,
+
+  // Etapa de pruebas: un lead que escriba exactamente este mensaje arranca de
+  // cero (ficha vacía, sin historial). APAGAR antes de conectar la línea de Pablo.
+  pruebas: { reiniciar: '#reiniciar' },
 };

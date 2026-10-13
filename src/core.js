@@ -91,7 +91,7 @@ function cierreFrenado(eventos) {
   let tipo = null;
   for (const e of eventos) {
     if (e.tipo === 'handoff_bloqueado') tipo = e.payload.tipo;
-    if (e.tipo === 'handoff') tipo = null;
+    if (e.tipo === 'handoff' || e.tipo === 'conversation_reset') tipo = null;
   }
   return tipo;
 }

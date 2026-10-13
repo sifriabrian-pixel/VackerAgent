@@ -186,3 +186,38 @@ test('sin App Secret el webhook solo se acepta en modo prueba', () => {
   delete process.env.WHATSAPP_DRY_RUN;
   try { assert.equal(meta.verifySignature(body, {}), false); } finally { process.env.WHATSAPP_DRY_RUN = '1'; }
 });
+
+test('#reiniciar: el lead arranca de cero sin borrar nada; a quien no es lead no se le responde', async () => {
+  h.tmpDb();
+  const sent = fakeProvider();
+  let calls = fakeClaude(() => 'Te escribo en breve. [NOMBRE:Ana] [PROPIEDAD:VHO9477038] [DISPONIBILIDAD:jueves] [HANDOFF_AGENDA]');
+  const num = h.numero();
+  agent.handleEvents([inbound(num, `Quiero visitarla ${h.LINK_ZP}`)]);
+  await agent.idle();
+  assert.ok(repo.getLead(num).handoff_at);
+
+  agent.handleEvents([inbound(num, '  #Reiniciar ')]);
+  await agent.idle();
+  await h.dormir(10);
+  assert.equal(sent[sent.length - 1].text, 'Conversación reiniciada. Podés empezar de nuevo.');
+  assert.equal(calls.length, 1, 'el comando no llega a Claude');
+  const lead = repo.getLead(num);
+  assert.deepEqual([lead.datos, lead.handoff_at, lead.pausado_at], [{}, null, null]);
+  assert.equal(h.db.get().prepare('SELECT COUNT(*) n FROM mensajes').get().n, 2, 'los mensajes anteriores siguen en la base');
+  assert.deepEqual(repo.events(num).find((e) => e.tipo === 'conversation_reset').payload.datos_anteriores.nombre, 'Ana');
+
+  // La conversación siguiente no ve nada de la anterior, y ya no hace falta mandar un link.
+  calls = fakeClaude(() => '¡Hola! Gracias por escribirme.');
+  agent.handleEvents([inbound(num, 'hola')]);
+  await agent.idle();
+  assert.deepEqual(calls[0].messages, [{ role: 'user', content: 'hola' }]);
+  assert.match(calls[0].system[1].text, /Datos ya capturados \(no los vuelvas a preguntar\): \{\}/);
+
+  // Un desconocido que escribe el comando: pasa por el filtro como cualquier mensaje.
+  const antes = sent.length;
+  const otro = h.numero();
+  agent.handleEvents([inbound(otro, '#reiniciar')]);
+  await agent.idle();
+  assert.equal(sent.length, antes);
+  assert.equal(repo.getContacto(otro).tipo, 'pendiente');
+});

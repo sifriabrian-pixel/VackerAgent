@@ -107,15 +107,36 @@ function bumpAttempts(ids) {
   db.get().transaction(() => ids.forEach((id) => stmt.run(id)))();
 }
 
+// Reinicio de pruebas: el lead arranca de cero sin borrar nada. La ficha se
+// vacía (queda copiada en el evento) y el historial que ve el agente empieza
+// después de este punto.
+function resetConversacion(numero) {
+  const conn = db.get();
+  return conn.transaction(() => {
+    const lead = getLead(numero);
+    if (!lead) return false;
+    conn.prepare("UPDATE mensajes SET estado = 'procesado', processed_at = ? WHERE numero = ? AND direccion = 'in' AND estado = 'pendiente'").run(now(), numero);
+    const desde = conn.prepare('SELECT COALESCE(MAX(rowid), 0) AS n FROM mensajes WHERE numero = ?').get(numero).n;
+    conn.prepare("UPDATE leads SET datos = '{}', calificado_at = NULL, handoff_at = NULL, handoff_tipo = NULL, pausado_at = NULL, cerrado_at = NULL, updated_at = ? WHERE numero = ?").run(now(), numero);
+    addEvent(numero, 'conversation_reset', { desde_mensaje: desde, datos_anteriores: lead.datos });
+    return true;
+  })();
+}
+
+function inicioHistorial(numero) {
+  const row = db.get().prepare("SELECT payload FROM eventos WHERE numero = ? AND tipo = 'conversation_reset' ORDER BY rowid DESC LIMIT 1").get(numero);
+  return row ? JSON.parse(row.payload).desde_mensaje : 0;
+}
+
 // Últimos N mensajes de la conversación (ya procesados), en orden.
 function history(numero, limit) {
   return db.get().prepare(`
     SELECT * FROM (
       SELECT rowid AS rid, * FROM mensajes
-      WHERE numero = ? AND cuerpo IS NOT NULL AND estado NOT IN ('pendiente', 'retenido', 'fallido')
+      WHERE numero = ? AND rowid > ? AND cuerpo IS NOT NULL AND estado NOT IN ('pendiente', 'retenido', 'fallido')
       ORDER BY created_at DESC, rowid DESC LIMIT ?
     ) ORDER BY created_at, rid
-  `).all(numero, limit);
+  `).all(numero, inicioHistorial(numero), limit);
 }
 
 // Cierra un turno de forma atómica: entrantes procesados + respuesta en 'enviando'.
@@ -165,6 +186,6 @@ module.exports = {
   digitos, getContacto, setContacto, contactosPorTipo,
   getLead, createLead, updateLead, leads,
   marcarVisto, insertMensaje, pendingInbound, numerosConPendientes, retenidos, liberarRetenidos, borrarMensajes,
-  bumpAttempts, history, commitTurn, markOutbound, esMensajeDelAgente, markStuckOutbound,
+  bumpAttempts, history, resetConversacion, commitTurn, markOutbound, esMensajeDelAgente, markStuckOutbound,
   addEvent, events, eventosPorTipo,
 };
