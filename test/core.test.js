@@ -288,6 +288,7 @@ test('el prompt trae las 28 propiedades y habla como Pablo en primera persona', 
   for (const prop of inventario.cargar()) assert.ok(p.includes(`Código: ${prop.tokko_ref}`), prop.tokko_ref);
   assert.match(p, /^Sos Pablo Sugamele/);
   assert.match(p, /Te escribo en breve para confirmar el horario/);
+  assert.match(p, /PRIMER mensaje.*"¡Hola! Gracias por escribirme, te saluda Pablo Sugamele de Vacker Negocios Inmobiliarios/);
   assert.ok(!/None|null|undefined/.test(p), 'sin datos vacíos en las fichas');
 });
 
