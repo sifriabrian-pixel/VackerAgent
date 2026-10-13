@@ -37,7 +37,7 @@ function enObservacion(deps = {}) {
 
 // ─── Etiquetas del LLM ───────────────────────────────────────────────────────
 
-const DATO_RE = /\[(NOMBRE|OPERACION|PRESUPUESTO|DORMITORIOS|ZONA|URGENCIA|DISPONIBILIDAD|PROPIEDAD)\s*:\s*([^\]\n]*)\]/gi;
+const DATO_RE = /\[(NOMBRE|USO|OPERACION|PRESUPUESTO|DORMITORIOS|ZONA|URGENCIA|DISPONIBILIDAD|PROPIEDAD)\s*:\s*([^\]\n]*)\]/gi;
 const HANDOFF_RE = /\[HANDOFF_(AGENDA|BUSQUEDA|GENERAL)\s*\]/i;
 // Cualquier cosa con forma de etiqueta, esté o no en la lista: nunca llega al lead.
 const ETIQUETA_RE = /\[[A-Za-z_]{2,30}(?:\s*:[^\]\n]*)?\s*\]/g;
@@ -51,6 +51,11 @@ function parseSalida(raw) {
   if (datos.propiedad) {
     const prop = inventario.porRef(datos.propiedad);
     if (prop) datos.propiedad = prop.tokko_ref; else delete datos.propiedad;
+  }
+  if (datos.uso) {
+    const uso = datos.uso.toLowerCase();
+    datos.uso = uso.startsWith('inv') ? 'inversion' : uso.startsWith('viv') ? 'vivir' : undefined;
+    if (!datos.uso) delete datos.uso;
   }
   if (datos.operacion) {
     const op = datos.operacion.toLowerCase();
@@ -102,6 +107,7 @@ function comentarioTokko(lead, tipo) {
   const partes = ['Lead de WhatsApp (anuncio de Meta).'];
   if (prop) partes.push(`Consulta por ${inventario.resumen(prop)}.`);
   if (tipo === 'agenda' && d.disponibilidad) partes.push(`Quiere visitar: ${d.disponibilidad}.`);
+  if (d.uso) partes.push(`La busca para ${d.uso === 'inversion' ? 'inversión' : 'vivir'}.`);
   if (d.operacion) partes.push(`Operación: ${d.operacion}.`);
   if (d.presupuesto) partes.push(`Presupuesto: ${d.presupuesto}.`);
   if (d.dormitorios) partes.push(`Dormitorios: ${d.dormitorios}.`);

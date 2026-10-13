@@ -169,7 +169,7 @@ test('ninguna etiqueta le llega al lead, ni las inventadas', async () => {
   const textos = [
     'Genial Juan. [NOMBRE:Juan] [OPERACION:compra] [ZONA:Centro] [PRESUPUESTO:90000] [PROPIEDAD:VHO9477038]',
     'Anotado. [AMBIENTES:3] [FOLLOWUP_TRIGGER]',
-    'Perfecto. [USO:inversion] ¿Qué zona?',
+    'Perfecto. [USO:Inversión] ¿Qué zona?',
     'Listo. [HANDOFF_GENERAL ]',
     'Dale. [nombre:juan] [LEAD_QUALIFIED]',
   ];
@@ -178,7 +178,7 @@ test('ninguna etiqueta le llega al lead, ni las inventadas', async () => {
   const enviados = [];
   for (let i = 0; i < textos.length; i++) enviados.push(...(await a.handleMessage(h.msg(num, i ? `mensaje ${i}` : `Hola ${h.LINK_ZP}`))).messages);
   assert.deepEqual(enviados, ['Genial Juan.', 'Anotado.', 'Perfecto. ¿Qué zona?', 'Listo.', 'Dale.']);
-  assert.deepEqual(repo.getLead(num).datos, { nombre: 'juan', operacion: 'compra', zona: 'Centro', presupuesto: '90000', propiedad: 'VHO9477038' });
+  assert.deepEqual(repo.getLead(num).datos, { nombre: 'juan', operacion: 'compra', zona: 'Centro', presupuesto: '90000', propiedad: 'VHO9477038', uso: 'inversion' });
 });
 
 test('una propiedad que no existe en el archivo no se registra', async () => {
@@ -288,6 +288,9 @@ test('el prompt trae las 28 propiedades y habla como Pablo en primera persona', 
   for (const prop of inventario.cargar()) assert.ok(p.includes(`Código: ${prop.tokko_ref}`), prop.tokko_ref);
   assert.match(p, /^Sos Pablo Sugamele/);
   assert.match(p, /Te escribo en breve para confirmar el horario/);
+  assert.match(p, /preguntá el nombre de la persona\. UNA sola vez/);
+  assert.match(p, /¿La buscás para vivir o como inversión\?/);
+  assert.match(p, /Siempre puede existir margen de negociación/);
   assert.match(p, /PRIMER mensaje.*"¡Hola! Gracias por escribirme, te saluda Pablo Sugamele de Vacker Negocios Inmobiliarios/);
   assert.ok(!/None|null|undefined/.test(p), 'sin datos vacíos en las fichas');
 });
