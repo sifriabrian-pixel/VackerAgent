@@ -1,10 +1,7 @@
 node_modules/
 .env
 
-# Sesión de WhatsApp (credenciales de la línea de Ezequiel)
-baileys_auth/
-
-# Datos de leads y contactos bloqueados
-data/
-leads.json
-blocked.json
+# Base de datos local (en Railway vive en el volumen)
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
