@@ -4,12 +4,11 @@
 // enviar (messages) y los efectos a ejecutar (actions). El adapter (agent.js +
 // adapters/*) los ejecuta; el de test (test-adapter.js) solo los registra.
 //
-//   ingest(input)               filtro lead/personal + guarda el mensaje (sincrónico)
+//   ingest(input)               filtro lead/personal + guarda el mensaje si es lead (sincrónico)
 //   processPending(numero)      responde lo pendiente de ese lead
 //   handleMessage(input)        = ingest + processPending (lo que usa el QA)
 //   ownerMessage(evento)        el asesor escribió desde su WhatsApp
 //   syncHistory(numeros)        chats que el asesor ya tenía → conocidos
-//   resolverPendiente(numero)   alguien (o el clasificador) decide un pendiente
 //   tick(numero, now)           seguimientos programados (todavía no hay)
 //
 // AgentInput  = { conversationId, from, text, now?, messageId?, type?,
@@ -17,7 +16,7 @@
 // AgentAction = { type: 'handoff' | 'create_tokko_contact', payload }
 // AgentOutput = { messages, actions, state, meta }
 //
-// deps = { store, llm, leerPortal, onLlmError, observacion }
+// deps = { store, agenda, llm, leerPortal, onLlmError, observacion }
 const config = require('../config/vacker');
 const repo = require('./repo');
 const llmReal = require('./llm');
@@ -25,6 +24,7 @@ const clock = require('./clock');
 const filtro = require('./filtro');
 const inventario = require('./inventario');
 const portales = require('./portales');
+const { agenda: agendaReal } = require('./agenda');
 
 const MAX_VUELTAS_TURNO = 3;
 const MSG_VACIO = 'Perdón, no llegué a entenderte. ¿Me lo escribís de nuevo?';
@@ -225,32 +225,28 @@ const vacio = (numero, store, extra) => ({ messages: [], actions: [], state: bui
 function promoverALead(numero, { origen, canal, referral, perfil }, store) {
   store.setContacto(numero, 'lead', origen, perfil);
   store.createLead(numero, { canal, referral });
-  return store.liberarRetenidos(numero);
 }
 
-// Pasa el mensaje por el filtro y, si corresponde, lo guarda. Sincrónico: el
-// webhook lo llama ANTES de responder 200. De quien no es lead no guarda texto.
+// Pasa el mensaje por el filtro y, si es un lead, lo guarda. Sincrónico: el
+// webhook lo llama ANTES de responder 200.
+// De quien no es lead no se guarda nada: ni el texto, ni el número, ni el
+// nombre. Solo una cuenta anónima de la decisión (para ver cómo anda el filtro).
 function ingest(input, deps = {}) {
   return clock.run(input.now, () => {
     const store = deps.store || repo;
+    const agenda = deps.agenda || agendaReal;
     const numero = repo.digitos(input.conversationId);
     if (!store.marcarVisto(input.messageId)) return { decision: 'duplicado', motivo: 'ya_visto', nuevo: false };
 
     const contacto = store.getContacto(numero);
     const referral = input.metadata?.referral || null;
     const perfil = input.metadata?.profileName || null;
-    const r = filtro.decidir({ contacto, input });
+    const r = filtro.decidir({ contacto, input, agenda });
     const observando = enObservacion(deps);
-    store.addEvent(numero, 'filtro', { decision: r.decision, motivo: r.motivo, tipo_mensaje: input.type || 'text', ...(observando ? { observacion: true } : {}) });
+    const registro = { decision: r.decision, motivo: r.motivo, tipo_mensaje: input.type || 'text', ...(observando ? { observacion: true } : {}) };
+    store.addEvent(r.decision === 'lead' ? numero : null, 'filtro', registro);
 
-    if (observando || r.decision === 'ignorar' || r.decision === 'personal' || input.text == null) return { ...r, nuevo: false };
-
-    if (r.decision === 'pendiente') {
-      store.setContacto(numero, 'pendiente', r.motivo, perfil);
-      if (referral) store.addEvent(numero, 'referral', referral);
-      store.insertMensaje({ numero, direccion: 'in', autor: 'lead', proveedorId: input.messageId, tipo: input.type || 'text', cuerpo: input.text, estado: 'retenido' });
-      return { ...r, nuevo: false };
-    }
+    if (observando || r.decision !== 'lead' || input.text == null) return { ...r, nuevo: false };
 
     if (!contacto || contacto.tipo !== 'lead') promoverALead(numero, { origen: r.motivo, canal: r.canal || 'directo', referral, perfil }, store);
     store.insertMensaje({ numero, direccion: 'in', autor: 'lead', proveedorId: input.messageId, tipo: input.type || 'text', cuerpo: input.text, estado: 'pendiente' });
@@ -259,28 +255,12 @@ function ingest(input, deps = {}) {
   });
 }
 
-// Alguien (una persona desde el panel, o el clasificador) decide un pendiente.
-// 'lead' → el agente responde lo que quedó retenido. 'personal' → se borra todo.
-function resolverPendiente(numeroCrudo, decision, { store = repo, origen = 'resuelto_manual' } = {}) {
-  const numero = repo.digitos(numeroCrudo);
-  const contacto = store.getContacto(numero);
-  if (!contacto || contacto.tipo !== 'pendiente') return { ok: false, motivo: 'no_es_pendiente' };
-  if (decision === 'lead') {
-    const referral = store.events(numero).filter((e) => e.tipo === 'referral').pop()?.payload || null;
-    const liberados = promoverALead(numero, { origen, canal: referral ? 'meta' : 'directo', referral, perfil: null }, store);
-    store.addEvent(numero, 'pendiente_resuelto', { decision, origen });
-    return { ok: true, liberados };
-  }
-  store.borrarMensajes(numero);
-  store.setContacto(numero, contacto.origen === 'conocido_con_anuncio' ? 'conocido' : 'personal', origen);
-  store.addEvent(numero, 'pendiente_resuelto', { decision: 'personal', origen });
-  return { ok: true, liberados: 0 };
-}
-
 // El asesor escribió desde su WhatsApp. Nunca crea un lead.
 //   - En una conversación del agente: el agente se pausa ahí.
-//   - En cualquier otro chat: ese número queda como conocido.
-function ownerMessage(evento, { store = repo } = {}) {
+//   - A alguien de su agenda: no se registra nada (ya se sabe que es personal).
+//   - A un número que no tiene agendado: queda marcado como conocido (solo el
+//     número, sin texto), para que si responde el agente no se meta.
+function ownerMessage(evento, { store = repo, agenda = agendaReal } = {}) {
   return clock.run(evento.now, () => {
     const numero = repo.digitos(evento.to);
     if (!numero) return { accion: 'ignorado' };
@@ -301,21 +281,20 @@ function ownerMessage(evento, { store = repo } = {}) {
       return { accion: 'pausado' };
     }
 
-    if (contacto?.tipo === 'pendiente') store.borrarMensajes(numero);
-    if (contacto?.tipo !== 'conocido') {
-      store.setContacto(numero, 'conocido', 'asesor_escribio');
-      store.addEvent(numero, 'conocido', { origen: 'asesor_escribio' });
-    }
+    if (contacto) return { accion: 'conocido' };
+    if (agenda.tiene(numero)) return { accion: 'agendado' };
+    store.setContacto(numero, 'conocido', 'asesor_escribio');
     return { accion: 'conocido' };
   });
 }
 
-// Chats que el asesor ya tenía antes del agente: quedan como conocidos.
-function syncHistory(numeros, { store = repo } = {}) {
+// Chats que el asesor ya tenía antes del agente: quedan como conocidos (solo el
+// número). Los de su agenda no hace falta anotarlos.
+function syncHistory(numeros, { store = repo, agenda = agendaReal } = {}) {
   let nuevos = 0;
   for (const crudo of numeros) {
     const numero = repo.digitos(crudo);
-    if (!numero || store.getContacto(numero)) continue;
+    if (!numero || store.getContacto(numero) || agenda.tiene(numero)) continue;
     store.setContacto(numero, 'conocido', 'historial');
     nuevos += 1;
   }
@@ -409,6 +388,6 @@ async function tick(numero, now, { store = repo } = {}) {
 }
 
 module.exports = {
-  ingest, processPending, handleMessage, ownerMessage, syncHistory, resolverPendiente, tick,
+  ingest, processPending, handleMessage, ownerMessage, syncHistory, tick,
   parseSalida, enHorario, buildContext, toApiMessages, buildState, enObservacion,
 };

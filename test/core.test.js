@@ -10,25 +10,45 @@ const filtro = require('../src/filtro');
 const inventario = require('../src/inventario');
 const { buildSystemPrompt } = require('../src/prompt');
 const { createTestAdapter } = require('../src/test-adapter');
+const { crearAgenda } = require('../src/agenda');
 
 const avisos = (out, tipo) => out.actions.filter((a) => a.type === tipo);
 
 // ─── Filtro ──────────────────────────────────────────────────────────────────
 
 test('filtro: orden de las reglas', () => {
-  const d = (contacto, text, referral) => filtro.decidir({ contacto, input: { text, metadata: { referral } } }).decision;
+  const agenda = crearAgenda();
+  agenda.reemplazar(['5493415550000']);
+  const d = (contacto, text, referral, from = '5493419990000') => filtro.decidir({ contacto, input: { from, text, metadata: { referral } }, agenda }).decision;
   assert.equal(d({ tipo: 'bloqueado' }, 'hola', h.ANUNCIO), 'ignorar');
-  assert.equal(d({ tipo: 'lead' }, 'cualquier cosa'), 'lead');
+  assert.equal(d({ tipo: 'lead' }, 'cualquier cosa', null, '5493415550000'), 'lead', 'un lead sigue siendo lead aunque Pablo lo agende');
   assert.equal(d({ tipo: 'conocido', origen: 'historial' }, `mirá ${h.LINK_ZP}`), 'personal');
+  assert.equal(d({ tipo: 'conocido' }, 'hola', h.ANUNCIO), 'personal');
   assert.equal(d({ tipo: 'personal' }, 'vi tu anuncio'), 'personal');
-  assert.equal(d({ tipo: 'conocido' }, 'hola', h.ANUNCIO), 'pendiente');
+  // En la agenda de Pablo: personal, aunque traiga link o venga de un anuncio.
+  assert.equal(d(null, `mirá esta casa para mamá ${h.LINK_ZP}`, null, '5493415550000'), 'personal');
+  assert.equal(d(null, 'Hola, vi el anuncio', h.ANUNCIO, '543415550000'), 'personal', 'el número sin el 9 también se reconoce');
+  // Fuera de la agenda: lead, con o sin link.
   assert.equal(d(null, '¡Hola! Quiero más información.', h.ANUNCIO), 'lead');
   assert.equal(d(null, `Hola, me interesa ${h.LINK_ZP}`), 'lead');
-  assert.equal(d(null, 'vi esto https://casa.mercadolibre.com.ar/MLA-123456789-casa-_JM'), 'lead');
-  // Sin anuncio ni link no hay forma segura de saber: no se responde solo.
-  for (const texto of ['Hola, sigue disponible la casa de Funes?', 'Eze te hago una consulta por el asado', 'vi un anuncio de un auto', 'Feliz cumple!']) {
-    assert.equal(d(null, texto), 'pendiente', texto);
+  for (const texto of ['Hola, sigue disponible la casa de Funes?', 'Buenas, consulto por VHO9477038', 'Hola Pablo, me pasó tu número Juan']) {
+    assert.equal(d(null, texto), 'lead', texto);
   }
+  const r = filtro.decidir({ contacto: null, input: { from: '5493419990000', text: 'Hola' }, agenda });
+  assert.deepEqual([r.motivo, r.canal], ['no_agendado', 'directo']);
+  // Sin agenda cargada no se le responde a nadie nuevo.
+  assert.equal(filtro.decidir({ contacto: null, input: { from: '5493419990000', text: 'Hola' }, agenda: crearAgenda() }).decision, 'ignorar');
+});
+
+test('agenda: normaliza el 9 de Argentina e ignora tandas grandes de bajas', () => {
+  const agenda = crearAgenda();
+  agenda.reemplazar(['+54 9 341 555-0001', '543415550002', '5493415550003']);
+  assert.ok(agenda.tiene('5493415550002') && agenda.tiene('543415550001'));
+  assert.deepEqual(agenda.aplicar([{ numero: '5493415550004', accion: 'add' }, { numero: '5493415550001', accion: 'remove' }]), { altas: 1, bajas: 1, bajasIgnoradas: 0 });
+  assert.equal(agenda.tiene('5493415550001'), false);
+  const tanda = Array.from({ length: 6 }, (_, i) => ({ numero: `54934155500${10 + i}`, accion: 'remove' }));
+  assert.equal(agenda.aplicar([{ numero: '5493415550002', accion: 'remove' }, ...tanda]).bajasIgnoradas, 7);
+  assert.ok(agenda.tiene('5493415550002'), 'una tanda grande de bajas no saca a nadie');
 });
 
 test('lead por anuncio: responde, identifica la propiedad del anuncio y guarda la conversación', async () => {
@@ -47,35 +67,40 @@ test('lead por anuncio: responde, identifica la propiedad del anuncio y guarda l
   assert.equal(out.state.nombre, 'Caro'); // respaldo: nombre del perfil
 });
 
-test('sin señal clara: queda pendiente, no llama a Claude ni responde; al resolverlo como lead responde lo retenido', async () => {
-  const llm = h.guion(['Hola! Contame por cuál propiedad me escribís.']);
+test('número no agendado, sin link ni anuncio: es lead y se responde', async () => {
+  const llm = h.guion(['¡Hola! Gracias por escribirme. ¿Por cuál propiedad me escribís?']);
   const a = createTestAdapter({ llm });
   const num = h.numero();
-  let out = await a.handleMessage(h.msg(num, 'Hola, sigue disponible la casa de Funes?'));
-  out = await a.handleMessage(h.msg(num, 'la de calle Sarmiento'));
-  assert.equal(out.state.decision, 'pendiente');
-  assert.deepEqual(out.messages, []);
-  assert.equal(llm.calls.length, 0);
-  assert.equal(repo.getContacto(num).tipo, 'pendiente');
-  assert.equal(repo.retenidos(num).length, 2);
-
-  const resuelto = await a.resolverPendiente(num, 'lead');
-  assert.equal(resuelto.messages.length, 1);
-  assert.equal(llm.calls.length, 1);
-  assert.match(llm.calls[0].historial[0].content, /casa de Funes\?\nla de calle Sarmiento/);
-  assert.equal(repo.getContacto(num).tipo, 'lead');
+  const out = await a.handleMessage(h.msg(num, 'Hola, sigue disponible la casa de Funes?'));
+  assert.equal(out.state.decision, 'lead');
+  assert.equal(out.messages.length, 1);
+  assert.equal(repo.getLead(num).canal, 'directo');
 });
 
-test('pendiente resuelto como personal: no se conserva nada de lo que escribió', async () => {
-  const a = createTestAdapter({ llm: h.guion(['x']) });
+test('contacto agendado: no se responde ni se guarda nada (ni el número)', async () => {
+  const llm = h.guion(['x']);
   const num = h.numero();
-  await a.handleMessage(h.msg(num, 'Eze, te hago una consulta por el asado del domingo'));
-  await a.resolverPendiente(num, 'personal');
-  assert.equal(repo.getContacto(num).tipo, 'personal');
-  assert.deepEqual(h.cuerpos(), []);
-  const out = await a.handleMessage(h.msg(num, 'dale, llevo el vino'));
+  const a = createTestAdapter({ llm, agenda: [num] });
+  const out = await a.handleMessage(h.msg(num, `Pablito! mirá esta casa para mamá ${h.LINK_ZP}`, { metadata: { profileName: 'Hermana' } }));
   assert.equal(out.state.decision, 'personal');
+  assert.deepEqual(out.messages, []);
+  assert.equal(llm.calls.length, 0);
+  assert.equal(repo.getContacto(num), null);
   assert.deepEqual(h.cuerpos(), []);
+  assert.equal(h.db.get().prepare('SELECT COUNT(*) n FROM eventos WHERE numero = ?').get(num).n, 0);
+  assert.equal(repo.eventosPorTipo('filtro')[0].payload.motivo, 'agendado');
+  // Pablo le escribe: tampoco queda registrado.
+  assert.equal(a.ownerMessage({ to: num, text: 'jaja dale', messageId: 'o9' }).accion, 'agendado');
+  assert.equal(repo.getContacto(num), null);
+  assert.deepEqual(h.cuerpos(), []);
+});
+
+test('agenda sin cargar: el agente no le responde a nadie nuevo', async () => {
+  const llm = h.guion(['x']);
+  const a = createTestAdapter({ llm, agenda: null });
+  const out = await a.handleMessage(h.msg(h.numero(), `Hola, me interesa ${h.LINK_ZP}`));
+  assert.equal(out.state.decision, 'ignorar');
+  assert.equal(llm.calls.length, 0);
 });
 
 test('conocidos: nunca se responde y nunca se guarda el texto, aunque mande un link', async () => {
@@ -93,19 +118,6 @@ test('conocidos: nunca se responde y nunca se guarda el texto, aunque mande un l
   assert.equal(llm.calls.length, 0);
   assert.deepEqual(h.cuerpos(), [], 'no quedó ningún texto de un contacto personal');
   assert.equal(repo.getLead(escrito), null, 'un mensaje del asesor nunca crea un lead');
-});
-
-test('conocido que entra por un anuncio: queda pendiente para revisar', async () => {
-  const a = createTestAdapter({ llm: h.guion(['x']) });
-  const num = h.numero();
-  a.syncHistory([num]);
-  const out = await a.handleMessage(h.msg(num, 'Hola, quiero info', { metadata: { referral: h.ANUNCIO } }));
-  assert.equal(out.state.decision, 'pendiente');
-  assert.equal(out.state.motivo, 'conocido_con_anuncio');
-  assert.deepEqual(out.messages, []);
-  // Si alguien lo descarta, vuelve a ser conocido.
-  await a.resolverPendiente(num, 'personal');
-  assert.equal(repo.getContacto(num).tipo, 'conocido');
 });
 
 test('el asesor escribe en una conversación del agente: el agente se pausa ahí', async () => {
@@ -134,14 +146,14 @@ test('lo que envía el propio agente no se confunde con un mensaje del asesor', 
 test('modo observación: registra qué decidiría, pero no responde ni guarda mensajes', async () => {
   const llm = h.guion(['x']);
   const a = createTestAdapter({ llm, observacion: true });
-  const [lead, dudoso, amigo] = [h.numero(), h.numero(), h.numero()];
+  const [lead, directo, amigo] = [h.numero(), h.numero(), h.numero()];
   a.ownerMessage({ to: amigo, text: 'nos vemos', messageId: 'o3' });
   const salidas = [
     await a.handleMessage(h.msg(lead, 'Hola', { metadata: { referral: h.ANUNCIO } })),
-    await a.handleMessage(h.msg(dudoso, 'Hola, una consulta')),
+    await a.handleMessage(h.msg(directo, 'Hola, una consulta')),
     await a.handleMessage(h.msg(amigo, 'dale')),
   ];
-  assert.deepEqual(salidas.map((s) => s.state.decision), ['lead', 'pendiente', 'personal']);
+  assert.deepEqual(salidas.map((s) => s.state.decision), ['lead', 'lead', 'personal']);
   assert.ok(salidas.every((s) => s.messages.length === 0));
   assert.equal(llm.calls.length, 0);
   assert.deepEqual(h.cuerpos(), []);

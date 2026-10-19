@@ -8,11 +8,13 @@ const repo = require('./repo');
 const core = require('./core');
 const tokko = require('./tokko');
 const config = require('../config/vacker');
+const { agenda } = require('./agenda');
 
 const MAX_INTENTOS = 3;
 const RETRY_BASE_MS = Number(process.env.RETRY_BASE_MS || 20000);
 const esperaMs = () => Number(process.env.ESPERA_MENSAJES_MS ?? 3000);
 const MSG_REINICIO = 'Conversación reiniciada. Podés empezar de nuevo.';
+const agendaReintentoMs = () => Number(process.env.AGENDA_REINTENTO_MS || 60000);
 const MSG_ERROR = 'Perdón, tuve un problema técnico. ¿Me escribís de nuevo en unos minutos?';
 
 let provider = null;
@@ -123,6 +125,8 @@ function handleEvents(eventos) {
       core.ownerMessage(ev.evento);
     } else if (ev.kind === 'history') {
       core.syncHistory(ev.numeros);
+    } else if (ev.kind === 'agenda') {
+      aplicarAgenda(ev.cambios);
     }
   }
   for (const numero of aProcesar) kick(numero);
@@ -148,10 +152,28 @@ async function reset(numero) {
   }
 }
 
-// Un pendiente resuelto como lead desde el panel: se responde lo retenido.
-function resolver(numero, decision) {
-  const r = core.resolverPendiente(numero, decision);
-  if (r.ok && r.liberados) kick(repo.digitos(numero));
+// ─── Agenda del asesor ───────────────────────────────────────────────────────
+
+// Se pide entera al proveedor al arrancar. Si falla, se reintenta cada minuto;
+// mientras tanto el filtro no trata a nadie como lead.
+async function cargarAgenda() {
+  if (!provider.cargarAgenda) throw new Error('el proveedor no informa la agenda');
+  for (;;) {
+    try {
+      const total = agenda.reemplazar(await provider.cargarAgenda());
+      console.log(`[agenda] ${total} contactos cargados`);
+      return total;
+    } catch (e) {
+      console.error('[agenda] No se pudo cargar; el agente no responde a nadie hasta tenerla. Reintento en 1 minuto:', e.message);
+      await dormir(agendaReintentoMs());
+    }
+  }
+}
+
+function aplicarAgenda(cambios) {
+  const r = agenda.aplicar(cambios);
+  if (r.bajasIgnoradas) console.warn(`[agenda] Se ignoró una tanda de ${r.bajasIgnoradas} bajas (demasiadas juntas)`);
+  if (r.altas || r.bajas) console.log(`[agenda] +${r.altas} / -${r.bajas} contactos`);
   return r;
 }
 
@@ -163,4 +185,4 @@ function recover() {
 
 const idle = () => Promise.all([...enCurso.values()].map((e) => e.promise));
 
-module.exports = { setProvider, handleEvents, resolver, kick, recover, idle };
+module.exports = { setProvider, handleEvents, cargarAgenda, kick, recover, idle };

@@ -12,7 +12,9 @@ const core = require('./src/core');
 const agent = require('./src/agent');
 const inventario = require('./src/inventario');
 
-const PROVEEDORES = { meta: './src/adapters/meta' };
+const { agenda } = require('./src/agenda');
+
+const PROVEEDORES = { meta: './src/adapters/meta', kapso: './src/adapters/kapso' };
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -39,15 +41,14 @@ async function api(req, res, url) {
   if (ruta === 'GET /api/estado') {
     return json(res, 200, {
       observacion: core.enObservacion(),
+      agenda: { cargada: agenda.estaCargada(), contactos: agenda.tamano() },
       propiedades: inventario.cargar().length,
-      contactos: Object.fromEntries(['lead', 'conocido', 'personal', 'pendiente', 'bloqueado'].map((t) => [t, repo.contactosPorTipo(t).length])),
+      contactos: Object.fromEntries(['lead', 'conocido', 'personal', 'bloqueado'].map((t) => [t, repo.contactosPorTipo(t).length])),
     });
   }
   if (ruta === 'GET /api/leads') return json(res, 200, repo.leads());
-  if (ruta === 'GET /api/pendientes') {
-    return json(res, 200, repo.contactosPorTipo('pendiente').map((c) => ({ ...c, mensajes: repo.retenidos(c.numero).map((m) => ({ texto: m.cuerpo, fecha: m.created_at })) })));
-  }
-  // Qué decidió (o habría decidido, en modo observación) el filtro. Sin textos.
+  // Qué decidió (o habría decidido, en modo observación) el filtro. Sin textos;
+  // el número solo figura cuando la decisión fue lead.
   if (ruta === 'GET /api/filtro') return json(res, 200, repo.eventosPorTipo('filtro', Number(url.searchParams.get('limit')) || 500));
 
   if (req.method === 'POST') {
@@ -55,10 +56,6 @@ async function api(req, res, url) {
     try { body = JSON.parse((await readBody(req)).toString('utf8') || '{}'); } catch { return json(res, 400, { error: 'JSON inválido' }); }
     const numero = repo.digitos(body.numero);
     if (!numero) return json(res, 400, { error: 'falta "numero"' });
-    if (url.pathname === '/api/pendientes/resolver') {
-      if (!['lead', 'personal'].includes(body.decision)) return json(res, 400, { error: '"decision" debe ser lead o personal' });
-      return json(res, 200, agent.resolver(numero, body.decision));
-    }
     if (url.pathname === '/api/bloquear') { repo.borrarMensajes(numero); repo.setContacto(numero, 'bloqueado', 'manual'); return json(res, 200, { ok: true }); }
     if (url.pathname === '/api/conocido') { repo.borrarMensajes(numero); repo.setContacto(numero, 'conocido', 'manual'); return json(res, 200, { ok: true }); }
   }
@@ -121,7 +118,7 @@ function cargarProveedor() {
 
 if (require.main === module) {
   const provider = cargarProveedor();
-  const faltan = ['ANTHROPIC_API_KEY', 'ADMIN_TOKEN'].filter((k) => !process.env[k]);
+  const faltan = ['ANTHROPIC_API_KEY', 'ADMIN_TOKEN', ...(provider.nombre === 'kapso' ? ['KAPSO_API_KEY', 'KAPSO_PHONE_NUMBER_ID', 'KAPSO_WEBHOOK_SECRET'] : [])].filter((k) => !process.env[k]);
   if (faltan.length) console.warn(`[config] Faltan variables: ${faltan.join(', ')}`);
   console.log(`[config] Proveedor de WhatsApp: ${provider.nombre}`);
   console.log(`[config] Modo observación: ${core.enObservacion() ? 'SÍ — el agente no responde a nadie (MODO_OBSERVACION=false para activarlo)' : 'no — el agente responde a los leads'}`);
@@ -130,6 +127,7 @@ if (require.main === module) {
   console.log(`[inventario] ${inventario.cargar().length} propiedades cargadas`);
   agent.setProvider(provider);
   agent.recover();
+  agent.cargarAgenda();
   const server = startServer(provider);
 
   process.on('SIGTERM', () => {

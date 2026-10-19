@@ -88,15 +88,6 @@ function numerosConPendientes() {
   return db.get().prepare("SELECT DISTINCT numero FROM mensajes WHERE direccion = 'in' AND estado = 'pendiente'").all().map((r) => r.numero);
 }
 
-function retenidos(numero) {
-  return db.get().prepare("SELECT * FROM mensajes WHERE numero = ? AND estado = 'retenido' ORDER BY created_at, rowid").all(numero);
-}
-
-// Un pendiente resultó ser lead: sus mensajes retenidos pasan a la cola del agente.
-function liberarRetenidos(numero) {
-  return db.get().prepare("UPDATE mensajes SET estado = 'pendiente' WHERE numero = ? AND estado = 'retenido'").run(numero).changes;
-}
-
 // No era un lead: no se conserva nada de lo que escribió.
 function borrarMensajes(numero) {
   return db.get().prepare('DELETE FROM mensajes WHERE numero = ?').run(numero).changes;
@@ -185,7 +176,7 @@ function eventosPorTipo(tipo, limit = 500) {
 module.exports = {
   digitos, getContacto, setContacto, contactosPorTipo,
   getLead, createLead, updateLead, leads,
-  marcarVisto, insertMensaje, pendingInbound, numerosConPendientes, retenidos, liberarRetenidos, borrarMensajes,
+  marcarVisto, insertMensaje, pendingInbound, numerosConPendientes, borrarMensajes,
   bumpAttempts, history, resetConversacion, commitTurn, markOutbound, esMensajeDelAgente, markStuckOutbound,
   addEvent, events, eventosPorTipo,
 };

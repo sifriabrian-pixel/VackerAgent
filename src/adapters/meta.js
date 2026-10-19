@@ -80,4 +80,7 @@ function parseWebhook(payload) {
   return eventos;
 }
 
-module.exports = { nombre: 'meta', ruta: '/webhook', sendMessage, verifySignature, parseWebhook, normalizeTo };
+// El número de prueba de Meta no tiene agenda: nadie está agendado.
+const cargarAgenda = async () => [];
+
+module.exports = { nombre: 'meta', ruta: '/webhook', sendMessage, verifySignature, parseWebhook, normalizeTo, describir, cargarAgenda, IGNORAR };

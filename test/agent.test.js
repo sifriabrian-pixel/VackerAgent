@@ -9,6 +9,8 @@ const agent = require('../src/agent');
 const llm = require('../src/llm');
 const tokko = require('../src/tokko');
 const meta = require('../src/adapters/meta');
+const kapso = require('../src/adapters/kapso');
+const { agenda } = require('../src/agenda');
 const { startServer } = require('../index');
 
 // Claude falso con la forma del SDK (el adapter usa el llm real del core).
@@ -26,7 +28,7 @@ function fakeProvider() {
 
 const inbound = (num, text, extra = {}) => ({ kind: 'inbound', input: { ...h.msg(num, text), messageId: `in.${Math.random()}`, ...extra } });
 
-test.beforeEach(() => { process.env.MODO_OBSERVACION = 'false'; });
+test.beforeEach(() => { process.env.MODO_OBSERVACION = 'false'; agenda.reemplazar([]); });
 
 test('flujo completo: llega un lead con link, el agente responde y queda registrado como enviado', async () => {
   h.tmpDb();
@@ -68,26 +70,39 @@ test('contacto personal y mensajes del asesor: nada llega a Claude ni se envía'
   h.tmpDb();
   const sent = fakeProvider();
   const calls = fakeClaude(() => 'x');
-  const amigo = h.numero();
+  const [amigo, agendado] = [h.numero(), h.numero()];
   agent.handleEvents([{ kind: 'owner', evento: { to: amigo, text: 'nos vemos mañana', messageId: 'o1' } }]);
-  agent.handleEvents([inbound(amigo, `mirá ${h.LINK_ZP}`), inbound(h.numero(), 'Hola, una consulta')]);
+  agent.handleEvents([{ kind: 'agenda', cambios: [{ numero: agendado, accion: 'add' }] }]);
+  agent.handleEvents([inbound(amigo, `mirá ${h.LINK_ZP}`), inbound(agendado, 'Hola, una consulta')]);
   agent.handleEvents([{ kind: 'history', numeros: [h.numero()] }]);
   await agent.idle();
   assert.equal(sent.length + calls.length, 0);
   assert.equal(repo.leads().length, 0);
 });
 
-test('pendiente resuelto como lead desde el panel: el agente le responde', async () => {
+test('agenda: hasta que se carga no se responde a nadie; después, el no agendado es lead', async () => {
   h.tmpDb();
   const sent = fakeProvider();
-  fakeClaude(() => 'Hola! ¿Por cuál propiedad me escribís?');
+  fakeClaude(() => '¡Hola! Gracias por escribirme.');
+  const sinAgenda = require('../src/agenda').crearAgenda();
+  const original = agenda.estaCargada;
+  agenda.estaCargada = sinAgenda.estaCargada;
+  try {
+    agent.handleEvents([inbound(h.numero(), 'Hola, sigue disponible?')]);
+    await agent.idle();
+    assert.equal(sent.length, 0);
+  } finally { agenda.estaCargada = original; }
+
+  const errores = console.error; console.error = () => {};
+  let intentos = 0;
+  agent.setProvider({ sendMessage: async (to, text) => { sent.push({ to, text }); return { id: 'x' }; }, cargarAgenda: async () => { intentos += 1; if (intentos === 1) throw new Error('Kapso 503'); return ['5493415550999']; } });
+  process.env.AGENDA_REINTENTO_MS = '5';
+  try { assert.equal(await agent.cargarAgenda(), 1); } finally { console.error = errores; }
+  assert.equal(intentos, 2);
   const num = h.numero();
-  agent.handleEvents([inbound(num, 'Hola, sigue disponible?')]);
+  agent.handleEvents([inbound(num, 'Hola, sigue disponible?'), inbound('5493415550999', 'Hola Pablo!')]);
   await agent.idle();
-  assert.equal(sent.length, 0);
-  assert.deepEqual(agent.resolver(num, 'lead'), { ok: true, liberados: 1 });
-  await agent.idle();
-  assert.equal(sent.length, 1);
+  assert.deepEqual(sent.map((s) => s.to), [num]);
 });
 
 test('si Claude falla se reintenta y al tercer error se manda una disculpa', async () => {
@@ -165,13 +180,13 @@ test('servidor: /health abierto, /api solo con el token por header, webhook solo
     assert.equal(repo.getContacto(num), null);
     assert.equal((await fetch(`${base}/webhook`, { method: 'POST', body, headers: { 'x-hub-signature-256': firma } })).status, 200);
 
-    // Quedó pendiente; se ve en el panel con su mensaje y se puede resolver.
-    const pendientes = await (await fetch(`${base}/api/pendientes`, { headers: auth })).json();
-    assert.equal(pendientes[0].numero, num);
-    assert.equal(pendientes[0].mensajes[0].texto, 'Hola, una consulta');
-    const r = await (await fetch(`${base}/api/pendientes/resolver`, { method: 'POST', headers: auth, body: JSON.stringify({ numero: num, decision: 'personal' }) })).json();
-    assert.equal(r.ok, true);
-    assert.deepEqual(h.cuerpos(), []);
+    // No está en la agenda: es un lead y se le responde.
+    await agent.idle();
+    assert.equal(repo.getContacto(num).tipo, 'lead');
+    assert.deepEqual(h.cuerpos(), ['Hola, una consulta', 'Hola']);
+    const est = await (await fetch(`${base}/api/estado`, { headers: auth })).json();
+    assert.deepEqual(est.agenda, { cargada: true, contactos: 0 });
+    assert.equal((await fetch(`${base}/api/pendientes`, { headers: auth })).status, 404);
   } finally {
     console.error = errores;
     delete process.env.ADMIN_TOKEN;
@@ -213,11 +228,12 @@ test('#reiniciar: el lead arranca de cero sin borrar nada; a quien no es lead no
   assert.deepEqual(calls[0].messages, [{ role: 'user', content: 'hola' }]);
   assert.match(calls[0].system[1].text, /Datos ya capturados \(no los vuelvas a preguntar\): \{\}/);
 
-  // Un desconocido que escribe el comando: pasa por el filtro como cualquier mensaje.
+  // Un contacto de la agenda que escribe el comando: pasa por el filtro como cualquier mensaje.
   const antes = sent.length;
   const otro = h.numero();
+  agenda.aplicar([{ numero: otro, accion: 'add' }]);
   agent.handleEvents([inbound(otro, '#reiniciar')]);
   await agent.idle();
   assert.equal(sent.length, antes);
-  assert.equal(repo.getContacto(otro).tipo, 'pendiente');
+  assert.equal(repo.getContacto(otro), null);
 });
