@@ -105,6 +105,27 @@ test('agenda: hasta que se carga no se responde a nadie; después, el no agendad
   assert.deepEqual(sent.map((s) => s.to), [num]);
 });
 
+test('primer arranque con Kapso: los chats previos sin agendar quedan como conocidos, una sola vez', async () => {
+  h.tmpDb();
+  const sent = fakeProvider();
+  fakeClaude(() => 'Hola');
+  const [viejo, agendado, nuevo] = [h.numero(), h.numero(), h.numero()];
+  let historiales = 0;
+  agent.setProvider({
+    sendMessage: async (to, text) => { sent.push({ to, text }); return { id: 'x' }; },
+    cargarAgenda: async () => [agendado],
+    cargarHistorial: async () => { historiales += 1; return [viejo, agendado]; },
+  });
+  const logs = console.log; console.log = () => {};
+  try { await agent.cargarAgenda(); await agent.cargarAgenda(); } finally { console.log = logs; }
+  assert.equal(historiales, 1, 'el historial se importa una sola vez');
+  assert.equal(repo.getContacto(viejo).tipo, 'conocido');
+  assert.equal(repo.getContacto(agendado), null, 'de los agendados no se guarda nada');
+  agent.handleEvents([inbound(viejo, 'Hola Pablo'), inbound(agendado, 'Hola'), inbound(nuevo, 'Hola, sigue disponible?')]);
+  await agent.idle();
+  assert.deepEqual(sent.map((s) => s.to), [nuevo]);
+});
+
 test('si Claude falla se reintenta y al tercer error se manda una disculpa', async () => {
   h.tmpDb();
   const sent = fakeProvider();

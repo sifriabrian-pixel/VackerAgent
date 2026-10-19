@@ -108,4 +108,24 @@ async function cargarAgenda() {
   throw new Error('demasiadas páginas de contactos');
 }
 
-module.exports = { nombre: 'kapso', ruta: '/webhook', sendMessage, verifySignature, parseWebhook, cargarAgenda };
+// Chats que el número ya tenía en Kapso. Al conectar el número, Kapso importa el
+// historial del teléfono antes de que exista el webhook del agente: esos chats
+// se leen acá, una sola vez, en el primer arranque.
+async function cargarHistorial() {
+  const numeros = [];
+  let after = null;
+  for (let pagina = 0; pagina < 1000; pagina += 1) {
+    const url = new URL(`${API}/meta/whatsapp/${META_VERSION}/${process.env.KAPSO_PHONE_NUMBER_ID}/conversations`);
+    url.searchParams.set('limit', '100');
+    if (after) url.searchParams.set('after', after);
+    const res = await fetch(url, { headers: headers() });
+    if (!res.ok) throw new Error(`Kapso conversaciones ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const json = await res.json();
+    for (const c of json.data || []) if (c.phone_number) numeros.push(c.phone_number);
+    after = json.paging?.cursors?.after || null;
+    if (!after || (json.data || []).length < 100) return numeros;
+  }
+  throw new Error('demasiadas páginas de conversaciones');
+}
+
+module.exports = { nombre: 'kapso', ruta: '/webhook', sendMessage, verifySignature, parseWebhook, cargarAgenda, cargarHistorial };

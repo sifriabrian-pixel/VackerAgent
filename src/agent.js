@@ -8,7 +8,7 @@ const repo = require('./repo');
 const core = require('./core');
 const tokko = require('./tokko');
 const config = require('../config/vacker');
-const { agenda } = require('./agenda');
+const { agenda, crearAgenda } = require('./agenda');
 
 const MAX_INTENTOS = 3;
 const RETRY_BASE_MS = Number(process.env.RETRY_BASE_MS || 20000);
@@ -154,13 +154,23 @@ async function reset(numero) {
 
 // ─── Agenda del asesor ───────────────────────────────────────────────────────
 
-// Se pide entera al proveedor al arrancar. Si falla, se reintenta cada minuto;
-// mientras tanto el filtro no trata a nadie como lead.
+// Al arrancar se pide al proveedor la agenda entera y, la primera vez, los chats
+// que el asesor ya tenía (quedan como conocidos). Si falla, se reintenta cada
+// minuto; mientras tanto el filtro no trata a nadie como lead.
 async function cargarAgenda() {
   if (!provider.cargarAgenda) throw new Error('el proveedor no informa la agenda');
   for (;;) {
     try {
-      const total = agenda.reemplazar(await provider.cargarAgenda());
+      const numeros = await provider.cargarAgenda();
+      if (provider.cargarHistorial && !repo.eventosPorTipo('historial_importado', 1).length) {
+        const chats = await provider.cargarHistorial();
+        const nueva = crearAgenda();
+        nueva.reemplazar(numeros);
+        const conocidos = core.syncHistory(chats, { agenda: nueva });
+        repo.addEvent(null, 'historial_importado', { chats: chats.length, conocidos });
+        console.log(`[historial] ${chats.length} chats previos (${conocidos} sin agendar quedaron como conocidos)`);
+      }
+      const total = agenda.reemplazar(numeros);
       console.log(`[agenda] ${total} contactos cargados`);
       return total;
     } catch (e) {

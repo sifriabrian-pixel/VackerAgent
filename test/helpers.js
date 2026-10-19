@@ -2,6 +2,7 @@
 process.env.WHATSAPP_DRY_RUN = '1';
 process.env.RETRY_BASE_MS = '10';
 process.env.ESPERA_MENSAJES_MS = '0';
+process.env.PRUEBAS_REINICIAR = '1';
 for (const k of ['WHATSAPP_TOKEN', 'YCLOUD_API_KEY', 'TOKKO_API_KEY', 'GOOGLE_SERVICE_ACCOUNT_JSON', 'ADMIN_TOKEN', 'WHATSAPP_APP_SECRET', 'MODO_OBSERVACION']) delete process.env[k];
 
 const fs = require('fs');
