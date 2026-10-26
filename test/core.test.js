@@ -294,9 +294,9 @@ test('el lead nombra el código o la dirección: se identifica; palabras sueltas
   }
 });
 
-test('el prompt trae las 28 propiedades y habla como Pablo en primera persona', () => {
+test('el prompt trae todas las propiedades del archivo y habla como Pablo en primera persona', () => {
   const p = buildSystemPrompt();
-  assert.equal(inventario.cargar().length, 28);
+  assert.equal(inventario.cargar().length, require('../data/propiedades.json').length);
   for (const prop of inventario.cargar()) assert.ok(p.includes(`Código: ${prop.tokko_ref}`), prop.tokko_ref);
   assert.match(p, /^Sos Pablo Sugamele/);
   assert.match(p, /Te escribo en breve para confirmar el horario/);

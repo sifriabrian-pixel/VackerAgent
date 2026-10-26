@@ -581,10 +581,31 @@
     "cocheras": null,
     "sup_total_m2": null,
     "sup_cubierta_m2": null,
-    "sup_terreno_m2": null,
+    "sup_terreno_m2": 246.89,
     "expensas_ars": null,
-    "adicionales": "Apto mascotas",
+    "adicionales": "Apto mascotas, Frente 8,66 m, Fondo 28,51 m, Orientación este, Zonificación residencial",
     "titulo": "VENTA TERRENO IDEAL PARA DEPÓSITO/LOGÍSTICA BARRIO LUDUEÑA, ROSARIO",
-    "descripcion_breve": "• Terreno ubicado sobre la calle Servando Bayo entre las calles Urquiza y San Lorenzo en el barrio Ludueña de la ciudad de Rosario. A pocas cuadras de grandes arterias como Bv Avellaneda y Av Pellegrini lo que garantiza fácil acceso a los distinto puntos de la ciudad. El lote cuenta con un total de 246,89 m2 con 8,66 metros de frente y 28.51 metros de fondo. • Oportunidad ideal para quienes bus..."
+    "descripcion_breve": "Terreno sobre calle Servando Bayo entre Urquiza y San Lorenzo, barrio Ludueña, Rosario. A pocas cuadras de Bv. Avellaneda y Av. Pellegrini, con fácil acceso a distintos puntos de la ciudad. Lote de 246,89 m² con 8,66 m de frente y 28,51 m de fondo. Oportunidad ideal para depósito o logística, y posibilidad para constructoras de pre proyecto de obra. Forma de pago: contado / efectivo."
+  },
+  {
+    "tokko_ref": "VPH12024913",
+    "tipo": "PH",
+    "operacion": "Venta",
+    "address": "Jujuy al 2700",
+    "barrio": "Pichincha",
+    "precio": "USD 195.000",
+    "precio_raw": 195000,
+    "moneda": "USD",
+    "ambientes": 6,
+    "dormitorios": 4,
+    "banios": 3,
+    "cocheras": 1,
+    "sup_total_m2": 223.55,
+    "sup_cubierta_m2": 147.04,
+    "sup_terreno_m2": 127,
+    "expensas_ars": null,
+    "adicionales": "Patio, Terraza, Parrilla, Lavadero, Cocina, Comedor diario, Living comedor, Luminoso, Apto mascotas, Orientación norte, Disposición frente, 2 plantas, Antigüedad 60 años (ampliada y reciclada recientemente), Condición muy buena",
+    "titulo": "VENTA PH DE 4 DORMITORIOS CON PATIO, TERRAZA Y COCHERA BARRIO PICHINCHA, ROSARIO",
+    "descripcion_breve": "Ubicado sobre calle Jujuy entre Callao y Av. Ovidio Lagos, a pocos metros de Av. Francia y Bv. Oroño. Zona de gran movimiento comercial y gastronómico en Pichincha. Terreno de 127 m² (8,20 x 15,50 m) dividido en 2 viviendas. Vivienda 1: cocina comedor y baño en planta baja; en planta alta, 2 dormitorios y baño completo. Vivienda 2: ingreso vehicular hacia el patio, cocina comedor, lavadero, 2 dormitorios, baño y patio trasero. Construcción de 60 años, ampliada y reciclada recientemente. Apto crédito. La propiedad está alquilada hasta diciembre de 2026. Superficies: cubierta 147,04 m² (117,30 m² con permiso y 29,74 m² a registrar), semicubierta 6,30 m², patio libre 38,14 m². Los m² son aproximados y se deben corroborar con la documentación."
   }
 ]

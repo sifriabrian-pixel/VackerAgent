@@ -189,7 +189,7 @@ test('servidor: /health abierto, /api solo con el token por header, webhook solo
     assert.equal((await fetch(`${base}/api/leads`, { headers: { Authorization: 'Bearer otro' } })).status, 401);
     const auth = { Authorization: 'Bearer secreto', 'Content-Type': 'application/json' };
     const estado = await (await fetch(`${base}/api/estado`, { headers: auth })).json();
-    assert.equal(estado.propiedades, 28);
+    assert.equal(estado.propiedades, require('../data/propiedades.json').length);
 
     // Webhook: con App Secret, solo pasa la firma correcta.
     const num = h.numero();
