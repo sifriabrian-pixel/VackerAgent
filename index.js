@@ -11,6 +11,7 @@ const repo = require('./src/repo');
 const core = require('./src/core');
 const agent = require('./src/agent');
 const inventario = require('./src/inventario');
+const panel = require('./src/panel');
 
 const { agenda } = require('./src/agenda');
 
@@ -26,12 +27,26 @@ function readBody(req) {
 }
 
 // Sin ADMIN_TOKEN configurado no entra nadie.
-function autorizado(req) {
-  const esperado = process.env.ADMIN_TOKEN;
+// El panel de Vacker usa PANEL_TOKEN, que solo sirve para leer (/api/panel/*).
+function coincide(req, esperado) {
   if (!esperado) return false;
   const a = Buffer.from((req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
   const b = Buffer.from(esperado);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+const autorizado = (req) => coincide(req, process.env.ADMIN_TOKEN);
+const autorizadoPanel = (req) => autorizado(req) || coincide(req, process.env.PANEL_TOKEN);
+
+function apiPanel(req, res, url) {
+  if (req.method !== 'GET') return json(res, 405, { error: 'solo lectura' });
+  if (url.pathname === '/api/panel/resumen') return json(res, 200, panel.resumen());
+  if (url.pathname === '/api/panel/leads') return json(res, 200, panel.leads());
+  const m = url.pathname.match(/^\/api\/panel\/leads\/(\d+)$/);
+  if (m) {
+    const l = panel.lead(m[1]);
+    return l ? json(res, 200, l) : json(res, 404, { error: 'no existe' });
+  }
+  return json(res, 404, { error: 'no existe' });
 }
 
 const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(body)); };
@@ -69,6 +84,11 @@ function startServer(provider) {
       if (url.pathname === '/health' || url.pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         return res.end('ok');
+      }
+
+      if (url.pathname.startsWith('/api/panel/')) {
+        if (!autorizadoPanel(req)) return json(res, 401, { error: 'No autorizado' });
+        return apiPanel(req, res, url);
       }
 
       if (url.pathname.startsWith('/api/')) {
