@@ -34,6 +34,33 @@ async function sendMessage(to, text) {
   return { id: json?.messages?.[0]?.id || null };
 }
 
+// Envía un mensaje de plantilla (fuera de la ventana de 24hs Meta requiere plantilla aprobada).
+// params: array de strings en el orden de los {{1}}, {{2}}... del cuerpo.
+async function sendTemplate(to, templateName, params = []) {
+  const destino = String(to).replace(/\D/g, '');
+  if (dryRun()) {
+    console.log(`[wa:dry] → ${destino} template:${templateName} params:${JSON.stringify(params)}`);
+    return { id: `wamid.dry.${crypto.randomUUID()}` };
+  }
+  const components = params.length ? [{
+    type: 'body',
+    parameters: params.map((p) => ({ type: 'text', text: String(p) })),
+  }] : [];
+  const res = await fetch(`${API}/meta/whatsapp/${META_VERSION}/${process.env.KAPSO_PHONE_NUMBER_ID}/messages`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: destino,
+      type: 'template',
+      template: { name: templateName, language: { code: 'es_AR' }, components },
+    }),
+  });
+  if (!res.ok) throw new Error(`Kapso template ${res.status}: ${await res.text()}`);
+  const json = await res.json();
+  return { id: json?.messages?.[0]?.id || null };
+}
+
 // Firma del webhook: HMAC-SHA256 del cuerpo crudo con el secreto del webhook,
 // en hexadecimal, en el header X-Webhook-Signature. Sin secreto solo se acepta en modo prueba.
 function verifySignature(rawBody, hdrs) {
@@ -128,4 +155,4 @@ async function cargarHistorial() {
   throw new Error('demasiadas páginas de conversaciones');
 }
 
-module.exports = { nombre: 'kapso', ruta: '/webhook', sendMessage, verifySignature, parseWebhook, cargarAgenda, cargarHistorial };
+module.exports = { nombre: 'kapso', ruta: '/webhook', sendMessage, sendTemplate, verifySignature, parseWebhook, cargarAgenda, cargarHistorial };
