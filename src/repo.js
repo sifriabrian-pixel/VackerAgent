@@ -49,7 +49,7 @@ function createLead(numero, { canal, referral = null }) {
   return getLead(numero);
 }
 
-const CAMPOS_LEAD = ['canal', 'datos', 'calificado_at', 'handoff_at', 'handoff_tipo', 'pausado_at', 'cerrado_at', 'tokko_at', 'ultimo_lead_at', 'ultimo_agente_at'];
+const CAMPOS_LEAD = ['canal', 'datos', 'calificado_at', 'handoff_at', 'handoff_tipo', 'pausado_at', 'cerrado_at', 'tokko_at', 'ultimo_lead_at', 'ultimo_agente_at', 'followup_24h_at', 'followup_48h_at'];
 
 function updateLead(numero, campos) {
   const claves = Object.keys(campos).filter((k) => CAMPOS_LEAD.includes(k));
@@ -62,6 +62,21 @@ function leads() {
   return db.get().prepare(`
     SELECT l.*, c.nombre_perfil FROM leads l JOIN contactos c ON c.numero = l.numero ORDER BY l.updated_at DESC
   `).all().map(parseLead);
+}
+
+// Leads sin derivar y sin seguimiento enviado, con más de `horas` horas de silencio.
+// campo: 'followup_24h_at' o 'followup_48h_at'
+function leadsParaFollowup(horas, campo) {
+  const corte = new Date(Date.now() - horas * 60 * 60 * 1000).toISOString();
+  return db.get().prepare(`
+    SELECT l.*, c.nombre_perfil FROM leads l JOIN contactos c ON c.numero = l.numero
+    WHERE l.handoff_at IS NULL
+      AND l.cerrado_at IS NULL
+      AND l.pausado_at IS NULL
+      AND l.ultimo_lead_at IS NOT NULL
+      AND l.ultimo_lead_at <= ?
+      AND l.${campo} IS NULL
+  `).all(corte).map(parseLead);
 }
 
 // ─── Mensajes ────────────────────────────────────────────────────────────────
@@ -175,7 +190,7 @@ function eventosPorTipo(tipo, limit = 500) {
 
 module.exports = {
   digitos, getContacto, setContacto, contactosPorTipo,
-  getLead, createLead, updateLead, leads,
+  getLead, createLead, updateLead, leads, leadsParaFollowup,
   marcarVisto, insertMensaje, pendingInbound, numerosConPendientes, borrarMensajes,
   bumpAttempts, history, resetConversacion, commitTurn, markOutbound, esMensajeDelAgente, markStuckOutbound,
   addEvent, events, eventosPorTipo,

@@ -12,6 +12,7 @@ const core = require('./src/core');
 const agent = require('./src/agent');
 const inventario = require('./src/inventario');
 const panel = require('./src/panel');
+const scheduler = require('./src/scheduler');
 
 const { agenda } = require('./src/agenda');
 
@@ -146,8 +147,10 @@ if (require.main === module) {
   db.open();
   console.log(`[inventario] ${inventario.cargar().length} propiedades cargadas`);
   agent.setProvider(provider);
+  scheduler.setProvider(provider);
   agent.recover();
   agent.cargarAgenda();
+  scheduler.init();
   const server = startServer(provider);
 
   process.on('SIGTERM', () => {
