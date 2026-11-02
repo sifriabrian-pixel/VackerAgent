@@ -58,4 +58,11 @@ async function leer(url, fetchImpl = fetch) {
   }
 }
 
-module.exports = { detectar, textoDeUrl, leer };
+// Devuelve true si el texto contiene palabras clave inmobiliarias.
+function esConsultaInmobiliaria(texto) {
+  const lower = String(texto || '').toLowerCase();
+  if (detectar(texto)) return true;
+  return config.filtro.keywordsInmobiliarias.some((kw) => lower.includes(kw));
+}
+
+module.exports = { detectar, textoDeUrl, leer, esConsultaInmobiliaria };
