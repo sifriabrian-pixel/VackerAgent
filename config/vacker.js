@@ -16,6 +16,21 @@ module.exports = {
       { nombre: 'Mercado Libre', dominio: 'mercadolibre.com.ar' },
       { nombre: 'Argenprop', dominio: 'argenprop.com' },
       { nombre: 'Properati', dominio: 'properati.com' },
+      { nombre: 'Tokko', dominio: 'tokkobroker.com' },
+      { nombre: 'Ficha', dominio: 'ficha.info' },
+      { nombre: 'Kiteprop', dominio: 'kiteprop.com' },
+    ],
+    // Palabras que indican intención inmobiliaria. Si un agendado las manda
+    // el agente lo trata como lead nuevo (consulta por otra propiedad).
+    keywordsInmobiliarias: [
+      'propiedad', 'propiedades', 'casa', 'depto', 'departamento', 'ph',
+      'lote', 'terreno', 'local', 'oficina', 'galpon', 'cochera',
+      'alquiler', 'alquilar', 'venta', 'vender', 'comprar', 'compra',
+      'precio', 'valor', 'presupuesto', 'cuánto sale', 'cuanto sale',
+      'metros', 'm²', 'ambientes', 'dormitorios', 'habitaciones',
+      'visita', 'visitar', 'ver la', 'mostrar', 'ficha',
+      'zona', 'barrio', 'ubicación', 'ubicacion',
+      'zonaprop', 'argenprop', 'properati', 'mercado libre',
     ],
   },
 
