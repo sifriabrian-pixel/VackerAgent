@@ -136,6 +136,7 @@ function buildContext(lead, { pistas = [], faltantes = [], cierre = null } = {})
     const prop = inventario.porRef(lead.datos.propiedad);
     if (prop) lineas.push(`- Propiedad de esta consulta: ${inventario.resumen(prop)}.`);
   }
+  if (extra.primerMensaje) lineas.push('- PRIMER MENSAJE: presentate como "Soy Pablo, de Vacker Propiedades" antes de responder la consulta.');
   lineas.push(...pistas.map((p) => `- ${p}`));
   lineas.push(`- Datos ya capturados (no los vuelvas a preguntar): ${JSON.stringify(lead.datos)}`);
   if (lead.handoff_at) lineas.push('- Esta consulta YA quedó cerrada y anotada: respondé dudas, no vuelvas a ofrecer la visita ni repitas la etiqueta de cierre.');
@@ -318,8 +319,10 @@ async function turno(numero, deps = {}, vuelta = 1) {
 
   const pistas = await identificarPropiedad(lead, pendientes, { store, leerPortal });
   const cierre = lead.handoff_at ? null : cierreFrenado(store.events(numero));
-  const contexto = buildContext(lead, { pistas, cierre, faltantes: cierre ? faltantesPara(cierre, lead.datos) : [] });
-  const historial = toApiMessages([...store.history(numero, config.historialMax), ...pendientes.filter((m) => m.cuerpo)]);
+  const historialPrevio = store.history(numero, config.historialMax);
+  const primerMensaje = historialPrevio.length === 0;
+  const contexto = buildContext(lead, { pistas, cierre, faltantes: cierre ? faltantesPara(cierre, lead.datos) : [], primerMensaje });
+  const historial = toApiMessages([...historialPrevio, ...pendientes.filter((m) => m.cuerpo)]);
 
   let salida;
   try {
