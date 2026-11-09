@@ -66,8 +66,10 @@ function leads() {
 
 // Leads sin derivar y sin seguimiento enviado, con más de `horas` horas de silencio.
 // campo: 'followup_24h_at' o 'followup_48h_at'
+// El 48h solo aplica si el 24h ya fue enviado (evita mandar los dos juntos al mismo lead).
 function leadsParaFollowup(horas, campo) {
   const corte = new Date(Date.now() - horas * 60 * 60 * 1000).toISOString();
+  const extra = campo === 'followup_48h_at' ? 'AND l.followup_24h_at IS NOT NULL' : '';
   return db.get().prepare(`
     SELECT l.*, c.nombre_perfil FROM leads l JOIN contactos c ON c.numero = l.numero
     WHERE l.handoff_at IS NULL
@@ -76,6 +78,7 @@ function leadsParaFollowup(horas, campo) {
       AND l.ultimo_lead_at IS NOT NULL
       AND l.ultimo_lead_at <= ?
       AND l.${campo} IS NULL
+      ${extra}
   `).all(corte).map(parseLead);
 }
 
