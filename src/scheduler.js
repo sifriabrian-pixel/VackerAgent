@@ -37,7 +37,7 @@ async function chequearFollowups() {
     await enviarFollowup(lead, 'vacker_seguimiento_24h', 'followup_24h_at');
   }
   for (const lead of leads48h) {
-    await enviarFollowup(lead, 'vacker_seguimiento_48h', 'followup_48h_at');
+    await enviarFollowup(lead, 'vacker_seguimiento_48h_v2', 'followup_48h_at');
   }
 
   if (leads24h.length || leads48h.length) {
