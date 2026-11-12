@@ -23,13 +23,12 @@ module.exports = {
     // Palabras que indican intención inmobiliaria. Si un agendado las manda
     // el agente lo trata como lead nuevo (consulta por otra propiedad).
     keywordsInmobiliarias: [
-      'propiedad', 'propiedades', 'casa', 'depto', 'departamento', 'ph',
-      'lote', 'terreno', 'local', 'oficina', 'galpon', 'cochera',
-      'alquiler', 'alquilar', 'venta', 'vender', 'comprar', 'compra',
-      'precio', 'valor', 'presupuesto', 'cuánto sale', 'cuanto sale',
-      'metros', 'm²', 'ambientes', 'dormitorios', 'habitaciones',
-      'visita', 'visitar', 'ver la', 'mostrar', 'ficha',
-      'zona', 'barrio', 'ubicación', 'ubicacion',
+      'propiedad', 'propiedades', 'depto', 'departamento', 'ph',
+      'lote', 'terreno', 'galpon', 'cochera',
+      'alquiler', 'alquilar',
+      'presupuesto', 'cuánto sale', 'cuanto sale',
+      'm²', 'ambientes', 'dormitorios',
+      'ficha',
       'zonaprop', 'argenprop', 'properati', 'mercado libre',
     ],
   },
