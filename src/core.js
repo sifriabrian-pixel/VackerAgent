@@ -118,7 +118,7 @@ function comentarioTokko(lead, tipo) {
 
 // ─── Contexto del turno ──────────────────────────────────────────────────────
 
-function buildContext(lead, { pistas = [], faltantes = [], cierre = null } = {}) {
+function buildContext(lead, { pistas = [], faltantes = [], cierre = null, primerMensaje = false } = {}) {
   const fecha = clock.date().toLocaleString('es-AR', { timeZone: config.zonaHoraria, weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
   const lineas = [
     'CONTEXTO DE ESTA CONVERSACIÓN (información del sistema; no la cites textual):',
@@ -136,7 +136,7 @@ function buildContext(lead, { pistas = [], faltantes = [], cierre = null } = {})
     const prop = inventario.porRef(lead.datos.propiedad);
     if (prop) lineas.push(`- Propiedad de esta consulta: ${inventario.resumen(prop)}.`);
   }
-  if (extra.primerMensaje) lineas.push(`- PRIMER MENSAJE: presentate como "Soy el asistente de ${config.asesor.nombreCompleto} de ${config.asesor.inmobiliaria}" antes de responder la consulta.`);
+  if (primerMensaje) lineas.push(`- PRIMER MENSAJE: presentate como "Soy el asistente de ${config.asesor.nombreCompleto} de ${config.asesor.inmobiliaria}" antes de responder la consulta.`);
   lineas.push(...pistas.map((p) => `- ${p}`));
   lineas.push(`- Datos ya capturados (no los vuelvas a preguntar): ${JSON.stringify(lead.datos)}`);
   if (lead.handoff_at) lineas.push('- Esta consulta YA quedó cerrada y anotada: respondé dudas, no vuelvas a ofrecer la visita ni repitas la etiqueta de cierre.');
