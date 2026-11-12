@@ -39,6 +39,7 @@ function enObservacion(deps = {}) {
 
 const DATO_RE = /\[(NOMBRE|USO|OPERACION|PRESUPUESTO|DORMITORIOS|ZONA|URGENCIA|DISPONIBILIDAD|PROPIEDAD)\s*:\s*([^\]\n]*)\]/gi;
 const HANDOFF_RE = /\[HANDOFF_(AGENDA|BUSQUEDA|GENERAL)\s*\]/i;
+const PAUSAR_RE = /\[PAUSAR\]/i;
 // Cualquier cosa con forma de etiqueta, esté o no en la lista: nunca llega al lead.
 const ETIQUETA_RE = /\[[A-Za-z_]{2,30}(?:\s*:[^\]\n]*)?\s*\]/g;
 
@@ -63,8 +64,9 @@ function parseSalida(raw) {
     if (!datos.operacion) delete datos.operacion;
   }
   const handoff = String(raw).match(HANDOFF_RE)?.[1].toLowerCase() || null;
+  const pausar = PAUSAR_RE.test(String(raw));
   const texto = String(raw).replace(ETIQUETA_RE, '').replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-  return { texto, datos, handoff };
+  return { texto, datos, handoff, pausar };
 }
 
 // ─── Horario ─────────────────────────────────────────────────────────────────
@@ -337,7 +339,19 @@ async function turno(numero, deps = {}, vuelta = 1) {
   // Entraron mensajes mientras Claude respondía: se descarta y se responde todo junto.
   if (vuelta < MAX_VUELTAS_TURNO && store.pendingInbound(numero).length > pendientes.length) return turno(numero, deps, vuelta + 1);
 
+  // Si Pablo escribió mientras el agente procesaba, pausar y no responder.
   lead = store.getLead(numero);
+  if (lead.pausado_at) {
+    store.commitTurn({ numero, inboundIds: pendientes.map((m) => m.id), replyText: null });
+    return vacio(numero, store);
+  }
+
+  // La persona pidió que el agente se calle → pausar después de responder.
+  if (salida.pausar) {
+    store.updateLead(numero, { pausado_at: clock.nowISO() });
+    store.addEvent(numero, 'pausado', { motivo: 'lead_pidio_pausa' });
+    lead = store.getLead(numero);
+  }
   const nuevos = Object.fromEntries(Object.entries(salida.datos).filter(([k, v]) => lead.datos[k] !== v));
   if (Object.keys(nuevos).length) {
     store.updateLead(numero, { datos: { ...lead.datos, ...nuevos } });
