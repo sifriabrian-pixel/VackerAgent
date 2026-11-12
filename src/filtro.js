@@ -27,10 +27,6 @@ function decidir({ contacto, input, agenda }) {
 
   if (!agenda?.estaCargada()) return { decision: 'ignorar', motivo: 'agenda_no_cargada' };
   if (agenda.tiene(input.from || input.conversationId)) {
-    // Agendado que manda consulta inmobiliaria → lead nuevo (volvió a consultar)
-    if (portales.esConsultaInmobiliaria(input.text)) {
-      return { decision: 'lead', motivo: 'agendado_consulta_inmobiliaria', canal: 'directo' };
-    }
     return { decision: 'personal', motivo: 'agendado' };
   }
 
