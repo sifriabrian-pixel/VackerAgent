@@ -69,6 +69,7 @@ function leads() {
 // El 48h solo aplica si el 24h ya fue enviado (evita mandar los dos juntos al mismo lead).
 function leadsParaFollowup(horas, campo) {
   const corte = new Date(Date.now() - horas * 60 * 60 * 1000).toISOString();
+  const maxAntiguedad = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
   const extra = campo === 'followup_48h_at' ? 'AND l.followup_24h_at IS NOT NULL' : '';
   return db.get().prepare(`
     SELECT l.*, c.nombre_perfil FROM leads l JOIN contactos c ON c.numero = l.numero
@@ -77,9 +78,10 @@ function leadsParaFollowup(horas, campo) {
       AND l.pausado_at IS NULL
       AND l.ultimo_lead_at IS NOT NULL
       AND l.ultimo_lead_at <= ?
+      AND l.ultimo_lead_at >= ?
       AND l.${campo} IS NULL
       ${extra}
-  `).all(corte).map(parseLead);
+  `).all(corte, maxAntiguedad).map(parseLead);
 }
 
 // ─── Mensajes ────────────────────────────────────────────────────────────────
